@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Property Research — Deal Flow</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#f4f4f5;font-family:'Inter',sans-serif;color:#1a1a2e;}
+    .card{background:#fff;border-radius:10px;border:1px solid #e2e2e8;overflow:hidden;display:flex;flex-direction:column;transition:box-shadow 0.2s,transform 0.2s;}
+    .card:hover{box-shadow:0 4px 20px rgba(0,0,0,0.1);transform:translateY(-1px);}
+    .card.fav{border-color:#7c3d52;box-shadow:0 0 0 2px rgba(124,61,82,0.15);}
+    .card.disc{opacity:0.5;border-color:#c0392b;}
+    .card.sold{opacity:0.7;border-color:#2e7d32;}
+    .card.incomplete{border-color:#b45309;border-style:dashed;}
+    .icon-btn{background:#f9f9fb;border:1px solid #ddd;border-radius:6px;width:34px;height:34px;cursor:pointer;font-size:0.9rem;display:flex;align-items:center;justify-content:center;transition:all 0.15s;color:#888;}
+    .icon-btn:hover{border-color:#7c3d52;background:#f5eef1;color:#7c3d52;}
+    .icon-btn.fav-on{background:#f5eef1;border-color:#7c3d52;color:#7c3d52;}
+    .icon-btn.del:hover{border-color:#c0392b;background:#fdf0f0;color:#c0392b;}
+    .icon-btn.sold-btn:hover{border-color:#2e7d32;background:#f0f7f0;color:#2e7d32;}
+    .filter-btn{padding:5px 14px;border-radius:20px;border:1px solid #ddd;background:#fff;font-size:0.72rem;font-family:'Inter',sans-serif;cursor:pointer;font-weight:500;color:#666;transition:all 0.15s;}
+    .filter-btn:hover,.filter-btn.on{background:#5c1a2e;color:#fff;border-color:#5c1a2e;font-weight:600;}
+    .stat{padding:12px 8px;text-align:center;border-right:1px solid #eee;}
+    .stat:last-child{border-right:none;}
+    .acq-row{display:flex;justify-content:space-between;padding:6px 14px;border-bottom:1px solid #f0f0f4;font-size:0.75rem;}
+    .acq-row:last-child{border-bottom:none;}
+    .expand-btn{background:none;border:none;cursor:pointer;font-size:0.72rem;color:#999;padding:4px 8px;border-radius:4px;font-family:'Inter',sans-serif;transition:color 0.15s;}
+    .expand-btn:hover{color:#5c1a2e;font-weight:600;}
+    .submit-btn{background:#5c1a2e;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:0.75rem;font-family:'Inter',sans-serif;cursor:pointer;font-weight:600;transition:background 0.15s;}
+    .submit-btn:hover{background:#7c3d52;}
+    .submit-btn:disabled{background:#ccc;cursor:not-allowed;}
+    .gold-btn{background:#7c3d52;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:0.78rem;font-family:'Inter',sans-serif;cursor:pointer;font-weight:600;transition:background 0.15s;}
+    .gold-btn:hover{background:#5c1a2e;}
+    .gold-btn:disabled{background:#ccc;cursor:not-allowed;}
+    .rental-link{color:#5c1a2e;text-decoration:none;font-size:0.72rem;padding:4px 10px;background:#fdf6f8;border:1px solid #e8d0d8;border-radius:4px;display:block;margin-bottom:4px;transition:background 0.15s;}
+    .rental-link:hover{background:#f5e6eb;}
+    .comment-bubble{background:#f9f9fb;border:1px solid #e8e8ee;border-radius:8px;padding:10px 12px;margin-bottom:6px;}
+    .comment-bubble.ai-response{background:#f0f7f0;border-color:#c8e6c9;}
+    .stitle{font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;margin-bottom:8px;}
+    .flag-red{font-size:0.72rem;color:#b71c1c;line-height:1.6;}
+    .cards-grid{max-width:1400px;margin:0 auto;padding:24px 28px;display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:18px;}
+    textarea:focus,input:focus,select:focus{outline:none;border-color:#7c3d52 !important;}
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 20px;backdrop-filter:blur(2px);}
+    .modal{background:#fff;border:1px solid #e2e2e8;border-radius:12px;width:100%;max-width:720px;padding:32px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.15);}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+    .form-full{grid-column:1/-1;}
+    .form-label{font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#999;margin-bottom:5px;display:block;}
+    .form-input{width:100%;border:1px solid #ddd;border-radius:6px;padding:9px 12px;font-size:0.8rem;font-family:'Inter',sans-serif;color:#1a1a2e;background:#fff;}
+    .form-textarea{width:100%;border:1px solid #ddd;border-radius:6px;padding:9px 12px;font-size:0.78rem;font-family:'Inter',sans-serif;color:#1a1a2e;background:#fff;resize:vertical;min-height:80px;}
+    .form-select{width:100%;border:1px solid #ddd;border-radius:6px;padding:9px 12px;font-size:0.8rem;font-family:'Inter',sans-serif;color:#1a1a2e;background:#fff;}
+    .ai-panel{background:#fdf6f8;border:1px solid #e8d0d8;border-radius:10px;padding:20px;margin-bottom:20px;}
+    .ai-panel-title{font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#7c3d52;margin-bottom:8px;}
+    .ai-status{font-size:0.78rem;color:#555;line-height:1.5;}
+    .progress-dots::after{content:'...';animation:dots 1.2s steps(4,end) infinite;}
+    @keyframes dots{0%,20%{content:'.'}40%{content:'..'}60%,100%{content:'...'}}
+    .section-divider{grid-column:1/-1;border-top:1px solid #eee;padding-top:14px;margin-top:4px;}
+    .section-divider-label{font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#7c3d52;margin-bottom:12px;}
+    .next-action-box{background:#fdf6f8;border:1px solid #e8d0d8;border-radius:8px;padding:14px 16px;margin-bottom:12px;}
+    .next-action-label{font-size:0.58rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#7c3d52;margin-bottom:8px;}
+    .auction-box{background:#fdf8f0;border:1px solid #e8d8b8;border-radius:8px;padding:14px 16px;margin-bottom:12px;}
+    .incomplete-banner{background:#fff8e1;border-bottom:1px solid #ffe082;padding:8px 14px;font-size:0.72rem;color:#b45309;display:flex;justify-content:space-between;align-items:center;}
+    @media(max-width:700px){.cards-grid{grid-template-columns:1fr;padding:16px;}.form-grid{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="err" style="display:none;padding:40px;color:#c0392b;background:#fdf0f0;margin:20px;border-radius:8px;border:1px solid #c0392b;font-family:sans-serif;"></div>
+  <script>
+    window.addEventListener('error',function(e){var d=document.getElementById('err');d.style.display='block';d.textContent='Error: '+e.message+' line '+e.lineno;});
+    window.addEventListener('unhandledrejection',function(e){var d=document.getElementById('err');d.style.display='block';d.textContent='Promise Error: '+(e.reason&&e.reason.message?e.reason.message:String(e.reason));});
+  </script>
+  <script type="importmap">{"imports":{"react":"https://esm.sh/react@18.3.1","react-dom/client":"https://esm.sh/react-dom@18.3.1/client","@supabase/supabase-js":"https://esm.sh/@supabase/supabase-js@2.45.4"}}</script>
+  <script type="module">
+    import { createElement as h, useState, useEffect, useRef } from "react";
+    import { createRoot } from "react-dom/client";
+    import { createClient } from "@supabase/supabase-js";
+
+    var SUPA_URL = "https://yqrkdemxmppzfplkxzhp.supabase.co";
+    var SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxcmtkZW14bXBwemZwbGt4emhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1NzA2OTYsImV4cCI6MjA5NTE0NjY5Nn0.NgfZ44VaHrTUmKmaXMTZi5DfVZOZXxBvoSozqwPqLo0";
+    var supabase = createClient(SUPA_URL, SUPA_KEY);
+    var MAX_ACTIVE = 25;
+
+    var fmt = function(n){ return n ? "\u00a3"+Number(n).toLocaleString("en-GB") : "\u2014"; };
+    var fmtPct = function(n){ return n ? Number(n).toFixed(1)+"%" : "\u2014"; };
+
+    function sdlt(price){
+      if(price<=250000) return Math.round(price*0.03);
+      return Math.round(250000*0.03+(Math.min(price,925000)-250000)*0.08);
+    }
+
+    function PC(p){
+      var m={HIGH:{strip:"#2e7d32",badge:"#e8f5e9",text:"#2e7d32"},MEDIUM:{strip:"#b45309",badge:"#fff8e1",text:"#b45309"},LOW:{strip:"#c0392b",badge:"#fdf0f0",text:"#c0392b"}};
+      return m[p]||{strip:"#ccc",badge:"#f9f9f9",text:"#aaa"};
+    }
+
+    function isGuide(prop){
+      return ((prop.price_label||"").toLowerCase().indexOf("guide")!==-1)||(prop.auction_house&&prop.auction_house.length>0);
+    }
+
+    function enrich(p){
+      var price=Number(p.price)||0,reno=Number(p.reno_total)||0,s=sdlt(price),total=price+s+4000+500+reno;
+      var rent=Number(p.est_market_rent)||0,tg=(rent>0&&total>0)?parseFloat(((rent*12)/total*100).toFixed(2)):0,tn=parseFloat((tg*0.77).toFixed(2));
+      var lo=Number(p.est_market_value_low)||0,hi=Number(p.est_market_value_high)||0;
+      var refVal=Number(p.est_refinance_value)||Math.round((lo+hi)/2),mort=Math.round(refVal*0.75);
+      var guide=isGuide(p),maxBid=guide?(Number(p.auction_max_bid)||Math.round(price*1.22)):null;
+      var maxBidTotal=maxBid?maxBid+sdlt(maxBid)+4000+500+reno:null;
+      var maxBidYield=(maxBid&&rent>0&&maxBidTotal>0)?parseFloat(((rent*12)/maxBidTotal*100).toFixed(2)):null;
+      var dq=(!p.address||p.address.length<5||p.address.indexOf("Unknown")!==-1||!price||!rent)?"incomplete":"complete";
+      return Object.assign({},p,{sdlt:s,legal_fees:4000,survey:500,total_acquisition_cost:total,true_gross_yield_pct:tg,true_net_yield_pct:tn,est_refinance_value:refVal,equity_created:Math.round(refVal-price-reno),capital_remaining:Math.round(total-mort),auction_guide_low:p.auction_guide_low||(guide?Math.round(price*1.15):null),auction_guide_high:p.auction_guide_high||(guide?Math.round(price*1.30):null),auction_max_bid:maxBid,auction_max_bid_yield:maxBidYield,auction_max_bid_total:maxBidTotal,data_quality:dq,is_favourite:false,is_discarded:false,is_sold:false});
+    }
+
+    function callEdge(chunkText,maxResults,stackContext){
+      return fetch(SUPA_URL+"/functions/v1/analyse-property",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPA_KEY},body:JSON.stringify({listing:chunkText,maxProps:maxResults,currentStack:stackContext})}).then(function(res){if(!res.ok)return res.text().then(function(t){throw new Error("Service error: "+t);});return res.json();}).then(function(data){if(data.error)throw new Error(data.error);var text=data.result||"",clean=text.replace(/```json\s*/gi,"").replace(/```\s*/g,"").trim();var arrS=clean.indexOf("["),arrE=clean.lastIndexOf("]"),objS=clean.indexOf("{"),objE=clean.lastIndexOf("}");if(arrS!==-1&&arrE!==-1&&(objS===-1||arrS<=objS))clean=clean.slice(arrS,arrE+1);else if(objS!==-1&&objE!==-1)clean=clean.slice(objS,objE+1);else throw new Error("No properties found");var parsed=JSON.parse(clean);return Array.isArray(parsed)?parsed:[parsed];});
+    }
+
+    function chunkListing(text){
+      var lines=text.split("\n"),chunks=[],current=[],count=0;
+      for(var i=0;i<lines.length;i++){current.push(lines[i]);if(/^\s*[\u00a3$]\d|^\s*\d+ bedroom|bedroom.*for sale/i.test(lines[i])){count++;if(count>0&&count%5===0){chunks.push(current.join("\n"));current=[];}}}
+      if(current.length>0)chunks.push(current.join("\n"));
+      if(chunks.length<=1&&text.length>2500){var sz=2500,result=[];for(var j=0;j<text.length;j+=sz)result.push(text.slice(j,j+sz));return result;}
+      return chunks.length>0?chunks:[text];
+    }
+
+    function askClaude(prop,question){
+      var ctx="Property: "+prop.address+" | Price: "+fmt(prop.price)+" | Priority: "+(prop.priority||"")+" | True gross: "+fmtPct(prop.true_gross_yield_pct)+" | Strategy: "+(prop.strategy||"")+" | Issues: "+(prop.issues_red_flags||"")+" | Next action: "+(prop.next_action||"");
+      var prompt="You are a direct UK property investment analyst. Answer in 2-3 sentences max. Be specific. No preamble.\n\nContext:\n"+ctx+"\n\nQuestion: "+question;
+      return fetch(SUPA_URL+"/functions/v1/ask-property",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPA_KEY},body:JSON.stringify({prompt:prompt})}).then(function(r){return r.json();}).then(function(d){return d.result||"Unable to respond right now.";}).catch(function(){return "Unable to connect \u2014 try again shortly.";});
+    }
+
+    function AddPropertyModal(props){
+      var onClose=props.onClose,onSaved=props.onSaved,userName=props.userName,currentProps=props.currentProps||[];
+      var ss=useState("paste"),step=ss[0],setStep=ss[1];
+      var ls=useState(""),listing=ls[0],setListing=ls[1];
+      var as=useState(""),aiStatus=as[0],setAiStatus=as[1];
+      var fs=useState(null),form=fs[0],setForm=fs[1];
+      var fss=useState(null),forms=fss[0],setForms=fss[1];
+      var is=useState(0),idx=is[0],setIdx=is[1];
+      var svs=useState(0),saved=svs[0],setSaved=svs[1];
+      var ms=useState(10),maxProps=ms[0],setMaxProps=ms[1];
+      var es=useState(""),err=es[0],setErr=es[1];
+      function setF(k,v){setForm(function(f){var n=Object.assign({},f);n[k]=v;return n;});}
+      function runAnalysis(){
+        if(!listing.trim())return;
+        setStep("analysing");setErr("");setAiStatus("Preparing...");
+        var active=currentProps.filter(function(p){return !p.is_discarded&&!p.is_sold;});
+        var stackCtx=JSON.stringify(active.map(function(p){return {address:p.address,priority:p.priority,true_gross_yield_pct:p.true_gross_yield_pct,is_favourite:p.is_favourite};}));
+        var chunks=chunkListing(listing),all=[];
+        function doChunk(i){
+          if(i>=chunks.length){
+            if(all.length===0){setErr("No properties found");setStep("paste");return;}
+            var order={HIGH:0,MEDIUM:1,LOW:2};
+            all.sort(function(a,b){var po=(order[a.priority]||3)-(order[b.priority]||3);return po!==0?po:(b.true_gross_yield_pct||0)-(a.true_gross_yield_pct||0);});
+            var final=all.slice(0,maxProps);
+            if(final.length===1){setForm(final[0]);setForms(null);}else{setForms(final);setForm(final[0]);setIdx(0);}
+            setStep("review");setAiStatus("Found "+all.length+" \u2014 top "+final.length+" by yield");return;
+          }
+          setAiStatus("Analysing batch "+(i+1)+" of "+chunks.length+"...");
+          callEdge(chunks[i],maxProps,stackCtx).then(function(p){all=all.concat(p.map(enrich));doChunk(i+1);}).catch(function(e){setErr("Failed: "+e.message);setStep("paste");});
+        }
+        doChunk(0);
+      }
+      function saveProperty(){
+        if(!form)return;setStep("saving");
+        supabase.from("properties").upsert(form).then(function(r){
+          if(r.error){setErr("Save failed: "+r.error.message);setStep("review");return;}
+          supabase.from("property_comments").insert({property_id:form.id,user_name:userName||"Team",action:"added",comment:"Added via admin panel"});
+          var ns=saved+1;setSaved(ns);
+          if(forms&&idx<forms.length-1){var ni=idx+1;setIdx(ni);setForm(forms[ni]);setStep("review");setAiStatus("Saved "+ns+" of "+forms.length);}
+          else{onSaved();onClose();}
+        });
+      }
+      return h("div",{className:"modal-overlay",onClick:function(e){if(e.target===e.currentTarget)onClose();}},
+        h("div",{className:"modal"},
+          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}},
+            h("div",null,
+              h("div",{style:{fontFamily:"'IBM Plex Mono',monospace",fontSize:"1rem",color:"#4a0e22",marginBottom:4,fontWeight:700}},"Add New Property"),
+              h("div",{style:{fontSize:"0.78rem",color:"#888"}},"Paste listings \u2014 Claude ranks against your "+currentProps.filter(function(p){return !p.is_discarded&&!p.is_sold;}).length+"/"+MAX_ACTIVE+" active.")
+            ),
+            h("button",{onClick:onClose,style:{background:"none",border:"none",fontSize:"1.4rem",cursor:"pointer",color:"#aaa"}},"\u00d7")
+          ),
+          h("div",{className:"ai-panel"},
+            h("div",{className:"ai-panel-title"},"\u25b6 CLAUDE AI"),
+            step==="paste"&&h("div",{className:"ai-status"},"Paste listings. Claude compares against your current stack and recommends only properties that earn their place."),
+            step==="analysing"&&h("span",{className:"ai-status progress-dots"},aiStatus),
+            step==="review"&&h("div",null,
+              h("div",{className:"ai-status",style:{marginBottom:8}},"\u2713 "+aiStatus),
+              form&&h("div",{style:{background:"#fdf6f8",borderRadius:8,padding:"10px 14px",border:"1px solid #e8d0d8"}},
+                h("div",{style:{fontSize:"0.6rem",color:"#7c3d52",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}},forms?"Property "+(idx+1)+" of "+forms.length:"Property"),
+                h("div",{style:{fontFamily:"'IBM Plex Mono',monospace",fontSize:"0.9rem",color:"#1a1a2e",fontWeight:600,marginBottom:6}},form.address||"Address unknown"),
+                h("div",{style:{display:"flex",gap:12,flexWrap:"wrap"}},
+                  h("span",{style:{fontSize:"0.72rem",color:"#666"}},fmt(form.price)),
+                  h("span",{style:{fontSize:"0.72rem",color:"#666"}},form.distance_from_ha8||""),
+                  form.priority&&h("span",{style:{fontSize:"0.68rem",fontWeight:600,padding:"2px 8px",borderRadius:4,background:PC(form.priority).badge,color:PC(form.priority).text}},form.priority)
+                )
+              )
+            ),
+            step==="saving"&&h("span",{className:"ai-status progress-dots"},"Saving to database")
+          ),
+          err&&h("div",{style:{background:"#fdf0f0",border:"1px solid #e8b8b8",borderRadius:8,padding:"10px 14px",fontSize:"0.78rem",color:"#c0392b",marginBottom:16}},err),
+          step==="paste"&&h("div",null,
+            h("label",{className:"form-label"},"Paste listing text"),
+            h("textarea",{className:"form-textarea",style:{minHeight:160,marginBottom:12},placeholder:"Paste listings from Rightmove/Zoopla emails, agent emails, auction catalogues...",value:listing,onChange:function(e){setListing(e.target.value);}}),
+            h("div",{style:{background:"#f9f9fb",border:"1px solid #eee",borderRadius:8,padding:"12px 14px",marginBottom:16}},
+              h("div",{style:{fontSize:"0.72rem",fontWeight:600,color:"#1a1a2e",marginBottom:10}},"How many of the best to add?"),
+              h("div",{style:{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}},
+                [3,5,10,15,20,25].map(function(n){return h("button",{key:n,onClick:function(){setMaxProps(n);},style:{padding:"5px 14px",borderRadius:20,border:"1px solid",borderColor:maxProps===n?"#5c1a2e":"#ddd",background:maxProps===n?"#5c1a2e":"#fff",color:maxProps===n?"#fff":"#888",fontSize:"0.75rem",fontFamily:"'Inter',sans-serif",cursor:"pointer",fontWeight:maxProps===n?600:400}},"Top "+n);}),
+                h("span",{style:{fontSize:"0.7rem",color:"#aaa"}},"\u2014 Claude ranks and filters")
+              )
+            ),
+            h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+              h("span",{style:{fontSize:"0.7rem",color:"#aaa"}},listing.trim()?(listing.length+" chars"):"Nothing pasted yet"),
+              h("div",{style:{display:"flex",gap:10}},
+                h("button",{className:"filter-btn",onClick:onClose},"Cancel"),
+                h("button",{className:"gold-btn",onClick:runAnalysis,disabled:!listing.trim()},"Find Top "+maxProps)
+              )
+            )
+          ),
+          step==="review"&&form&&h("div",null,
+            h("div",{className:"form-grid"},
+              h("div",{className:"section-divider form-full"},h("div",{className:"section-divider-label"},"Property Details")),
+              h("div",{className:"form-full"},h("label",{className:"form-label"},"Address"),h("input",{className:"form-input",value:form.address||"",onChange:function(e){setF("address",e.target.value);}})),
+              h("div",null,h("label",{className:"form-label"},"Type"),h("input",{className:"form-input",value:form.type||"",onChange:function(e){setF("type",e.target.value);}})),
+              h("div",null,h("label",{className:"form-label"},"Tenure"),h("select",{className:"form-select",value:form.tenure||"",onChange:function(e){setF("tenure",e.target.value);}},["Freehold","Leasehold","Share of Freehold"].map(function(t){return h("option",{key:t,value:t},t);}))),
+              h("div",null,h("label",{className:"form-label"},"Price (\u00a3)"),h("input",{className:"form-input",type:"number",value:form.price||"",onChange:function(e){setF("price",Number(e.target.value));}})),
+              h("div",null,h("label",{className:"form-label"},"Priority"),h("select",{className:"form-select",value:form.priority||"MEDIUM",onChange:function(e){setF("priority",e.target.value);}},["HIGH","MEDIUM","LOW"].map(function(p){return h("option",{key:p,value:p},p);}))),
+              h("div",{className:"section-divider form-full"},h("div",{className:"section-divider-label"},"Financials")),
+              [["Est. Rent (pcm)","est_market_rent"],["SDLT","sdlt"],["Reno Total","reno_total"],["Total All-in","total_acquisition_cost"],["True Gross %","true_gross_yield_pct"],["True Net %","true_net_yield_pct"]].map(function(pair){return h("div",{key:pair[1]},h("label",{className:"form-label"},pair[0]),h("input",{className:"form-input",type:"number",value:form[pair[1]]||"",onChange:function(e){setF(pair[1],Number(e.target.value));}}));}),
+              h("div",{className:"section-divider form-full"},h("div",{className:"section-divider-label"},"Analysis")),
+              h("div",{className:"form-full"},h("label",{className:"form-label"},"Next Action"),h("input",{className:"form-input",value:form.next_action||"",onChange:function(e){setF("next_action",e.target.value);}})),
+              h("div",{className:"form-full"},h("label",{className:"form-label"},"Strategy"),h("textarea",{className:"form-textarea",value:form.strategy||"",onChange:function(e){setF("strategy",e.target.value);}})),
+              h("div",{className:"form-full"},h("label",{className:"form-label"},"Issues & Red Flags"),h("textarea",{className:"form-textarea",style:{borderColor:"#e8b8b8"},value:form.issues_red_flags||"",onChange:function(e){setF("issues_red_flags",e.target.value);}}))
+            ),
+            forms&&h("div",{style:{background:"#f9f9fb",border:"1px solid #eee",borderRadius:8,padding:"12px 14px",marginTop:14}},
+              h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:"0.7rem",color:"#888",marginBottom:8}},
+                h("span",null,(idx+1)+" of "+forms.length+" properties"),
+                saved>0&&h("span",{style:{color:"#2e7d32",fontWeight:600}},"\u2713 "+saved+" saved")
+              ),
+              h("div",{style:{height:3,background:"#eee",borderRadius:2,overflow:"hidden"}},h("div",{style:{height:"100%",background:"#5c1a2e",borderRadius:2,width:(((idx+1)/forms.length)*100)+"%",transition:"width 0.3s"}}))
+            ),
+            h("div",{style:{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginTop:16,paddingTop:16,borderTop:"1px solid #eee"}},
+              h("button",{className:"filter-btn",onClick:function(){setStep("paste");},style:{marginRight:"auto"}},"\u2190 Re-analyse"),
+              h("button",{className:"filter-btn",onClick:onClose},"Cancel"),
+              forms&&idx<forms.length-1&&h("button",{className:"filter-btn",onClick:function(){var n=idx+1;setIdx(n);setForm(forms[n]);}},"Skip \u2192"),
+              h("button",{className:"gold-btn",onClick:saveProperty,disabled:step==="saving"},step==="saving"?"Saving...":(forms&&idx<forms.length-1)?"Save & Next \u2192":"Save to Database")
+            )
+          )
+        )
+      );
+    }
+
+    function PropertyCard(props){
+      var prop=props.prop,comments=props.comments,expanded=props.expanded;
+      var onExpand=props.onExpand,onFav=props.onFav,onDiscard=props.onDiscard,onSold=props.onSold,onComment=props.onComment;
+      var ns=useState(""),note=ns[0],setNote=ns[1];
+      var ais=useState(false),aiLoading=ais[0],setAiLoading=ais[1];
+      var pc=PC(prop.priority),guide=isGuide(prop);
+      var incomplete=prop.data_quality==="incomplete"||!prop.address||prop.address.length<5||!prop.price;
+      var cardClass="card"+(prop.is_favourite?" fav":"")+(prop.is_discarded?" disc":"")+(prop.is_sold?" sold":"")+(incomplete?" incomplete":"");
+
+      function handleSold(){var raw=window.prompt("Enter sale price (numbers only):"),digits="";if(raw!==null){for(var i=0;i<raw.length;i++){if(raw[i]>="0"&&raw[i]<="9")digits+=raw[i];}onSold(digits?Number(digits):null);}}
+
+      function handleComment(){
+        if(!note.trim())return;
+        var isQ=note.trim().endsWith("?");
+        if(isQ)setAiLoading(true);
+        onComment(note,function(){setNote("");},isQ,prop,function(){setAiLoading(false);});
+      }
+
+      function buildLinks(){
+        var url=prop.listing_url||"",hasRM=url.indexOf("rightmove.co.uk/properties/")!==-1;
+        var street=encodeURIComponent((prop.address||"").split(",")[0].trim());
+        var pc2=(prop.postcode||"").trim();
+        var rmUrl="https://www.rightmove.co.uk/property-for-sale/find.html?searchType=SALE&locationIdentifier=POSTCODE%5E"+encodeURIComponent(pc2)+"&keywords="+street+"&radius=0.0";
+        var zUrl="https://www.zoopla.co.uk/for-sale/property/"+pc2.toLowerCase().replace(/\s+/g,"-")+"/?q="+street;
+        var links=[];
+        if(hasRM)links.push(h("a",{key:"direct",href:url,target:"_blank",rel:"noreferrer",style:{fontSize:"0.72rem",fontWeight:600,color:"#fff",background:"#5c1a2e",padding:"5px 10px",borderRadius:6,textDecoration:"none"}},"\u2197 Listing"));
+        links.push(h("a",{key:"rm",href:rmUrl,target:"_blank",rel:"noreferrer",style:{fontSize:"0.72rem",color:"#5c1a2e",background:"#fdf6f8",border:"1px solid #e8d0d8",padding:"5px 10px",borderRadius:6,textDecoration:"none"}},"Rightmove \u2197"));
+        links.push(h("a",{key:"z",href:zUrl,target:"_blank",rel:"noreferrer",style:{fontSize:"0.72rem",color:"#5c1a2e",background:"#fdf6f8",border:"1px solid #e8d0d8",padding:"5px 10px",borderRadius:6,textDecoration:"none"}},"Zoopla \u2197"));
+        return links;
+      }
+
+      var nextActionText=prop.next_action||null;
+
+      return h("div",{className:cardClass},
+        h("div",{style:{height:4,background:pc.strip}}),
+        incomplete&&h("div",{className:"incomplete-banner"},h("span",null,"\u26a0 Incomplete data"),h("span",{style:{fontSize:"0.68rem"}},"Address or price missing")),
+        h("div",{style:{background:"#fafafa",padding:"14px 16px 12px",borderBottom:"1px solid #eee"}},
+          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:8}},
+            h("div",{style:{flex:1}},
+              h("div",{style:{fontFamily:"'IBM Plex Mono',monospace",fontSize:"0.9rem",fontWeight:600,color:"#1a1a2e",lineHeight:1.3,marginBottom:6}},prop.address||h("span",{style:{color:"#aaa",fontStyle:"italic"}},"Address not available")),
+              h("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},
+                h("span",{style:{fontSize:"0.62rem",fontWeight:600,padding:"3px 8px",borderRadius:4,textTransform:"uppercase",letterSpacing:"0.05em",background:pc.badge,color:pc.text}},(prop.priority==="HIGH"?"\u25cf ":"")+prop.priority+" PRIORITY"),
+                h("span",{style:{fontSize:"0.62rem",fontWeight:500,padding:"3px 8px",borderRadius:4,background:"#f0f0f4",color:"#666"}},(prop.type||"")+" \u00b7 "+(prop.tenure||"")),
+                prop.is_favourite&&h("span",{style:{fontSize:"0.62rem",fontWeight:600,padding:"3px 8px",borderRadius:4,background:"#f5eef1",color:"#7c3d52"}},"\u2665 FAV"),
+                prop.is_sold&&h("span",{style:{fontSize:"0.62rem",fontWeight:600,padding:"3px 8px",borderRadius:4,background:"#e8f5e9",color:"#2e7d32"}},"\u2713 SOLD"),
+                guide&&h("span",{style:{fontSize:"0.62rem",fontWeight:600,padding:"3px 8px",borderRadius:4,background:"#fff8e1",color:"#b45309"}},"\u{1F528} GUIDE")
+              )
+            ),
+            h("div",{style:{display:"flex",gap:5,flexShrink:0}},
+              h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("button",{className:"icon-btn"+(prop.is_favourite?" fav-on":""),onClick:onFav},prop.is_favourite?"\u2665":"\u2661"),h("span",{style:{fontSize:"0.55rem",color:prop.is_favourite?"#7c3d52":"#bbb",textTransform:"uppercase",letterSpacing:"0.05em"}},prop.is_favourite?"Saved":"Fav")),
+              h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("button",{className:"icon-btn del",onClick:onDiscard},prop.is_discarded?"\u21a9":"\ud83d\uddd1"),h("span",{style:{fontSize:"0.55rem",color:"#bbb",textTransform:"uppercase",letterSpacing:"0.05em"}},prop.is_discarded?"Restore":"Discard")),
+              !prop.is_sold&&h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("button",{className:"icon-btn sold-btn",onClick:handleSold,title:"Mark as sold"},"\u2713"),h("span",{style:{fontSize:"0.55rem",color:"#bbb",textTransform:"uppercase",letterSpacing:"0.05em"}},"Sold"))
+            )
+          ),
+          h("div",{style:{display:"flex",alignItems:"baseline",gap:8,marginTop:4,flexWrap:"wrap"}},
+            h("span",{style:{fontFamily:"'IBM Plex Mono',monospace",fontSize:"1.3rem",fontWeight:600,color:prop.is_sold?"#bbb":"#1a1a2e",textDecoration:prop.is_sold?"line-through":"none"}},fmt(prop.price)),
+            h("span",{style:{fontSize:"0.72rem",color:"#888"}},prop.price_label),
+            prop.is_sold&&h("span",{style:{fontFamily:"'IBM Plex Mono',monospace",fontSize:"1rem",fontWeight:600,color:"#2e7d32",marginLeft:8}},"\u2713 SOLD"+(prop.sold_price?" \u2014 "+fmt(prop.sold_price):""))
+          ),
+          h("div",{style:{display:"flex",gap:14,flexWrap:"wrap",marginTop:8}},
+            h("span",{style:{fontSize:"0.68rem",color:"#888"}},"\ud83d\udccd "+(prop.distance_from_ha8||"")),
+            prop.agent_name&&h("span",{style:{fontSize:"0.68rem",color:"#888"}},"\ud83c\udfd2 "+prop.agent_name+(prop.agent_phone?" \u00b7 "+prop.agent_phone:""))
+          )
+        ),
+        h("div",{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",borderBottom:"1px solid #eee"}},
+          [{label:"Est. rent",value:fmt(prop.est_market_rent),sub:"pcm"},{label:"Gross yield",value:fmtPct(prop.gross_yield_pct),sub:"on price",green:prop.gross_yield_pct>=5},{label:"True gross",value:fmtPct(prop.true_gross_yield_pct),sub:"all-in",green:prop.true_gross_yield_pct>=4.5},{label:"True net",value:fmtPct(prop.true_net_yield_pct),sub:"after costs",green:prop.true_net_yield_pct>=3.5}].map(function(s){return h("div",{key:s.label,className:"stat"},h("div",{style:{fontSize:"0.58rem",textTransform:"uppercase",letterSpacing:"0.08em",color:"#aaa",marginBottom:3}},s.label),h("div",{style:{fontSize:"0.95rem",fontWeight:600,color:s.green?"#2e7d32":"#1a1a2e",fontFamily:"'IBM Plex Mono',monospace"}},s.value),h("div",{style:{fontSize:"0.58rem",color:"#bbb",marginTop:2}},s.sub));})
+        ),
+        h("div",{style:{padding:"14px 16px",flex:1}},
+          nextActionText&&h("div",{className:"next-action-box"},
+            h("div",{className:"next-action-label"},"\u25b6 Recommended Action"),
+            (function(){
+              var t=nextActionText||"";
+              var low=t.toLowerCase();
+              var action="";var actionCol="#2e7d32";
+              if(low.indexOf("pass")!==-1||low.indexOf("discard")!==-1||low.indexOf("avoid")!==-1){action="Discard";actionCol="#c0392b";}
+              else if(low.indexOf("high priority")!==-1||low.indexOf("strong")!==-1||low.indexOf("excellent")!==-1||low.indexOf("urgently")!==-1){action="Priority Explore";actionCol="#1b5e20";}
+              else{action="Explore";actionCol="#2e7d32";}
+              return h("div",null,
+                h("div",{style:{display:"inline-block",fontSize:"0.75rem",fontWeight:700,color:"#fff",background:actionCol,borderRadius:20,padding:"4px 14px",marginBottom:8,letterSpacing:"0.04em"}},action),
+                h("div",{style:{fontSize:"0.8rem",color:"#333",lineHeight:1.5}},t)
+              );
+            })()
+          ),
+          guide&&h("div",{className:"auction-box"},
+            h("div",{style:{fontSize:"0.65rem",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:"#b45309",marginBottom:10}},"\u{1F528} Auction Bidding \u2014 Max Bid at Target Yield"),
+            (function(){
+              var rent=Number(prop.est_market_rent)||0;
+              var fixed=4500+(Number(prop.reno_total)||0);
+              function mbfy(tgt){
+                if(!rent||!tgt)return 0;
+                var ann=rent*12;
+                for(var b=50000;b<=2000000;b+=500){
+                  var s=b<=250000?Math.round(b*0.03):Math.round(250000*0.03+(Math.min(b,925000)-250000)*0.08);
+                  if((ann/(b+s+fixed))*100<=tgt)return b;
+                }
+                return 0;
+              }
+              var b4=mbfy(4),b5=mbfy(5),b6=mbfy(6);
+              return h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}},
+                [{pct:"4%",label:"OK",bid:b4,col:"#b45309",bg:"#fff8e1"},{pct:"5%",label:"Good",bid:b5,col:"#2e7d32",bg:"#e8f5e9"},{pct:"6%",label:"Excellent",bid:b6,col:"#1b5e20",bg:"#c8e6c9"}].map(function(m){
+                  return h("div",{key:m.pct,style:{background:m.bg,border:"1px solid",borderColor:m.col,borderRadius:8,padding:"12px 8px",textAlign:"center"}},
+                    h("div",{style:{fontSize:"0.6rem",textTransform:"uppercase",letterSpacing:"0.08em",color:m.col,marginBottom:6}},m.pct+" \u2014 "+m.label),
+                    h("div",{style:{fontFamily:"'IBM Plex Mono',monospace",fontSize:"1rem",fontWeight:700,color:m.bid>0?m.col:"#aaa"}},m.bid>0?fmt(m.bid):"n/a"),
+                    h("div",{style:{fontSize:"0.62rem",color:"#888",marginTop:4}},"max bid")
+                  );
+                })
+              );
+            })()
+          ),
+          h("div",{style:{marginBottom:12}},
+            h("div",{className:"stitle"},"Total Cost of Acquisition \u2014 Ltd Co"),
+            h("div",{style:{border:"1px solid #eee",borderRadius:8,overflow:"hidden"}},
+              [{label:"Purchase price",val:fmt(prop.price),cost:false},{label:"SDLT (Ltd Co + 3% surcharge)",val:fmt(prop.sdlt),cost:true},{label:"Legal fees",val:fmt(prop.legal_fees),cost:true},{label:"Survey / valuation",val:fmt(prop.survey),cost:true},{label:"Renovation estimate",val:fmt(prop.reno_total),cost:true}].map(function(r){return h("div",{key:r.label,className:"acq-row"},h("span",{style:{color:"#666"}},r.label),h("span",{style:{fontWeight:600,color:r.cost?"#c0392b":"#1a1a2e",fontFamily:"'IBM Plex Mono',monospace"}},r.val));}),
+              h("div",{style:{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:"#f5eef1",fontWeight:700,fontSize:"0.82rem",borderTop:"2px solid #7c3d52"}},h("span",{style:{color:"#4a0e22"}},"Total all-in cost"),h("span",{style:{color:"#4a0e22",fontFamily:"'IBM Plex Mono',monospace"}},fmt(prop.total_acquisition_cost))),
+              prop.est_refinance_value&&h("div",{className:"acq-row",style:{background:"#f0f4ff"}},h("span",{style:{color:"#1565c0"}},"Est. refinance value (post-works)"),h("span",{style:{fontWeight:600,color:"#1565c0",fontFamily:"'IBM Plex Mono',monospace"}},fmt(prop.est_refinance_value))),
+              prop.est_refinance_value&&h("div",{className:"acq-row",style:{background:"#f0f4ff"}},h("span",{style:{color:"#1565c0"}},"Est. mortgage (75% LTV)"),h("span",{style:{fontWeight:600,color:"#1565c0",fontFamily:"'IBM Plex Mono',monospace"}},fmt(Math.round(prop.est_refinance_value*0.75)))),
+              prop.capital_remaining&&h("div",{className:"acq-row",style:{background:"#e8f5e9"}},h("span",{style:{color:"#2e7d32",fontWeight:600}},"Capital remaining in deal"),h("span",{style:{fontWeight:700,color:"#2e7d32",fontFamily:"'IBM Plex Mono',monospace"}},fmt(prop.capital_remaining))),
+              prop.equity_created&&h("div",{className:"acq-row",style:{background:"#e8f5e9"}},h("span",{style:{color:"#2e7d32",fontWeight:600}},"Est. equity created"),h("span",{style:{fontWeight:700,color:"#2e7d32",fontFamily:"'IBM Plex Mono',monospace"}},fmt(prop.equity_created)))
+            )
+          ),
+          h("div",{style:{borderTop:"1px solid #eee",paddingTop:8,marginBottom:expanded?14:0}},h("button",{className:"expand-btn",onClick:onExpand},expanded?"\u25b2 Collapse":"\u25bc Full analysis")),
+          expanded&&h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}},
+            h("div",{style:{gridColumn:"1/-1"}},h("div",{className:"stitle",style:{color:"#7c3d52"}},"Strategy"),h("div",{style:{background:"#fafafa",border:"1px solid #eee",padding:"12px 14px",borderRadius:8,fontSize:"0.78rem",lineHeight:1.6,color:"#333"}},prop.strategy||"\u2014")),
+            h("div",null,h("div",{className:"stitle"},"Development potential"),h("div",{style:{fontSize:"0.72rem",color:"#555",lineHeight:1.6}},prop.development_potential||"\u2014")),
+            h("div",null,h("div",{className:"stitle"},"Issues & red flags"),h("div",{className:"flag-red"},prop.issues_red_flags||"\u2014")),
+            h("div",null,h("div",{className:"stitle"},"Comparable sales"),[[prop.comp_1_address,prop.comp_1_price,prop.comp_1_date],[prop.comp_2_address,prop.comp_2_price,prop.comp_2_date],[prop.comp_3_address,prop.comp_3_price,prop.comp_3_date]].filter(function(r){return r[0];}).map(function(r){return h("div",{key:r[0],style:{display:"flex",justifyContent:"space-between",fontSize:"0.72rem",padding:"4px 0",borderBottom:"1px solid #eee"}},h("span",{style:{color:"#777"}},r[0]+(r[2]?" ("+r[2]+")":"")),h("span",{style:{fontWeight:600,color:"#1a1a2e",fontFamily:"'IBM Plex Mono',monospace"}},fmt(r[1])));})),
+            h("div",null,h("div",{className:"stitle"},"Similar rentals"),[[prop.rental_link_1_label,prop.rental_link_1_url],[prop.rental_link_2_label,prop.rental_link_2_url],[prop.rental_link_3_label,prop.rental_link_3_url]].filter(function(r){return r[0];}).map(function(r){return h("a",{key:r[0],className:"rental-link",href:r[1],target:"_blank",rel:"noreferrer"},"\u2197 "+r[0]);}))
+          )
+        ),
+        h("div",{style:{borderTop:"1px solid #eee",padding:"12px 16px",background:"#fafafa"}},
+          h("div",{className:"stitle"},"Team comments",comments.length>0&&h("span",{style:{color:"#7c3d52",marginLeft:4,fontWeight:400,textTransform:"none",letterSpacing:"normal"}},"("+comments.length+")")),
+          comments.length>0&&h("div",{style:{marginBottom:10,maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:6}},
+            comments.filter(function(c){return (c.action==="comment"||c.action==="ai_response")&&c.comment;}).map(function(c){
+              var isAI=c.action==="ai_response";
+              return h("div",{key:c.id,className:"comment-bubble"+(isAI?" ai-response":"")},
+                h("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:4}},h("span",{style:{fontSize:"0.68rem",fontWeight:700,color:isAI?"#2e7d32":"#1a1a2e"}},isAI?"\u{1F916} Claude":c.user_name),h("span",{style:{fontSize:"0.6rem",color:"#bbb"}},new Date(c.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}))),
+                h("div",{style:{fontSize:"0.75rem",color:isAI?"#2e7d32":"#555",lineHeight:1.5}},c.comment)
+              );
+            })
+          ),
+          h("textarea",{value:note,onChange:function(e){setNote(e.target.value);},placeholder:"Add a comment or question... (end with ? for Claude to answer)",style:{width:"100%",minHeight:48,border:"1px solid #ddd",borderRadius:8,padding:"8px 10px",fontSize:"0.75rem",color:"#1a1a2e",background:"#fff",marginBottom:8,resize:"vertical",fontFamily:"'Inter',sans-serif"}}),
+          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}},
+            h("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},buildLinks()),
+            h("button",{className:"submit-btn",onClick:handleComment,disabled:aiLoading},aiLoading?"Claude thinking...":(note.trim().endsWith("?")?"\u{1F916} Ask Claude":"\ud83d\udcbe Save"))
+          )
+        )
+      );
+    }
+
+    function App(){
+      var ps=useState([]),properties=ps[0],setProperties=ps[1];
+      var cs=useState({}),comments=cs[0],setComments=cs[1];
+      var fs=useState("ALL"),filter=fs[0],setFilter=fs[1];
+      var ls=useState(true),loading=ls[0],setLoading=ls[1];
+      var ns=useState(""),userName=ns[0],setUserName=ns[1];
+      var ss=useState(""),syncMsg=ss[0],setSyncMsg=ss[1];
+      var es=useState(null),expanded=es[0],setExpanded=es[1];
+      var as=useState(false),showAdd=as[0],setShowAdd=as[1];
+      var syncTimer=useRef(null);
+
+      useEffect(function(){loadData();},[]);
+
+      function loadData(){
+        setLoading(true);
+        Promise.all([supabase.from("properties").select("*"),supabase.from("property_comments").select("*").order("created_at",{ascending:true})]).then(function(results){
+          var props=results[0].data||[],comms=results[1].data||[];
+          var order={HIGH:0,MEDIUM:1,LOW:2};
+          props.sort(function(a,b){var po=(order[a.priority]||3)-(order[b.priority]||3);return po!==0?po:(b.true_gross_yield_pct||0)-(a.true_gross_yield_pct||0);});
+          setProperties(props);
+          var g={};comms.forEach(function(c){if(!g[c.property_id])g[c.property_id]=[];g[c.property_id].push(c);});
+          setComments(g);setLoading(false);
+        });
+      }
+
+      function sync(msg){setSyncMsg(msg);clearTimeout(syncTimer.current);syncTimer.current=setTimeout(function(){setSyncMsg("");},3000);}
+
+      function toggleFav(prop){
+        var v=!prop.is_favourite;
+        setProperties(function(ps){return ps.map(function(p){return p.id===prop.id?Object.assign({},p,{is_favourite:v}):p;});});
+        supabase.from("properties").update({is_favourite:v,updated_at:new Date().toISOString()}).eq("id",prop.id).then(function(r){sync(r.error?"Save error":v?"\u2665 Favourited":"Unfavourited");});
+        supabase.from("property_comments").insert({property_id:prop.id,user_name:userName||"Team",action:v?"favourite":"unfavourite",comment:null});
+      }
+
+      function toggleDiscard(prop){
+        var v=!prop.is_discarded;
+        if(v&&!window.confirm("Remove \""+prop.address+"\" from main view?"))return;
+        setProperties(function(ps){return ps.map(function(p){return p.id===prop.id?Object.assign({},p,{is_discarded:v,is_favourite:v?false:p.is_favourite}):p;});});
+        supabase.from("properties").update({is_discarded:v,is_favourite:v?false:prop.is_favourite,updated_at:new Date().toISOString()}).eq("id",prop.id).then(function(r){
+          if(r.error){sync("Save error - try again");setProperties(function(ps){return ps.map(function(p){return p.id===prop.id?Object.assign({},p,{is_discarded:!v}):p;});});}
+          else sync(v?"Discarded":"Restored");
+        });
+        supabase.from("property_comments").insert({property_id:prop.id,user_name:userName||"Team",action:v?"discard":"restore",comment:null});
+      }
+
+      function markAsSold(prop,salePrice){
+        setProperties(function(ps){return ps.map(function(p){return p.id===prop.id?Object.assign({},p,{is_sold:true,sold_price:salePrice,is_favourite:false}):p;});});
+        supabase.from("properties").update({is_sold:true,sold_price:salePrice,is_favourite:false,updated_at:new Date().toISOString()}).eq("id",prop.id).then(function(r){sync(r.error?"Save error":"\u2713 Sold"+(salePrice?" at "+fmt(salePrice):""));});
+        supabase.from("property_comments").insert({property_id:prop.id,user_name:userName||"Team",action:"sold",comment:"Marked as sold"+(salePrice?" \u2014 "+fmt(salePrice):"")});
+      }
+
+      function submitComment(propId,text,clearFn,isQuestion,prop,doneFn){
+        if(!text.trim())return;
+        var user=userName||"Team";
+        supabase.from("property_comments").insert({property_id:propId,user_name:user,action:"comment",comment:text.trim()}).select().single().then(function(r){
+          if(r.data){
+            setComments(function(prev){var n=Object.assign({},prev);n[propId]=(n[propId]||[]).concat(r.data);return n;});
+            clearFn();sync("\u2713 Comment saved");
+            if(isQuestion&&prop){
+              var tid="thinking-"+Date.now();
+              setComments(function(prev){var n=Object.assign({},prev);n[propId]=(n[propId]||[]).concat({id:tid,property_id:propId,user_name:"Claude",action:"ai_response",comment:"Thinking...",created_at:new Date().toISOString()});return n;});
+              askClaude(prop,text).then(function(answer){
+                supabase.from("property_comments").insert({property_id:propId,user_name:"Claude",action:"ai_response",comment:answer}).select().single().then(function(ar){
+                  setComments(function(prev){var n=Object.assign({},prev);n[propId]=(n[propId]||[]).filter(function(c){return c.id!==tid;}).concat(ar.data||{id:Date.now(),property_id:propId,user_name:"Claude",action:"ai_response",comment:answer,created_at:new Date().toISOString()});return n;});
+                  if(doneFn)doneFn();sync("\u{1F916} Claude responded");
+                });
+              }).catch(function(){setComments(function(prev){var n=Object.assign({},prev);n[propId]=(n[propId]||[]).filter(function(c){return c.id!==tid;});return n;});if(doneFn)doneFn();});
+            } else {if(doneFn)doneFn();}
+          }
+        });
+      }
+
+      var FILTERS=["ALL","HIGH","MEDIUM","LOW","FAVOURITES","DISCARDED","SOLD"];
+      var filtered=properties.filter(function(p){
+        if(filter==="FAVOURITES")return p.is_favourite&&!p.is_discarded&&!p.is_sold;
+        if(filter==="DISCARDED")return p.is_discarded;
+        if(filter==="SOLD")return p.is_sold;
+        if(filter==="ALL")return !p.is_discarded&&!p.is_sold;
+        return !p.is_discarded&&!p.is_sold&&p.priority===filter;
+      });
+      var favs=properties.filter(function(p){return p.is_favourite&&!p.is_discarded&&!p.is_sold;}).length;
+      var discs=properties.filter(function(p){return p.is_discarded;}).length;
+      var sold=properties.filter(function(p){return p.is_sold;}).length;
+      var actv=properties.filter(function(p){return !p.is_discarded&&!p.is_sold;}).length;
+      var incomplete=properties.filter(function(p){return !p.is_discarded&&!p.is_sold&&(p.data_quality==="incomplete"||!p.address||p.address.length<5);}).length;
+
+      function fl(f){var m={ALL:"All ("+actv+")",HIGH:"\u25cf High",MEDIUM:"\u25cf Medium",LOW:"\u25cf Low",FAVOURITES:"\u2665 Favs ("+favs+")",DISCARDED:"\ud83d\uddd1 Discarded ("+discs+")",SOLD:"\u2713 Sold ("+sold+")"};return m[f]||f;}
+
+      if(loading)return h("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#f4f4f5",fontFamily:"'IBM Plex Mono',monospace",color:"#4a0e22",fontSize:"1rem",letterSpacing:"0.08em"}},"Loading properties...");
+
+      return h("div",{style:{minHeight:"100vh",background:"#f4f4f5"}},
+        showAdd&&h(AddPropertyModal,{onClose:function(){setShowAdd(false);},onSaved:function(){loadData();sync("\u2713 Property added");},userName:userName,currentProps:properties}),
+        h("div",{style:{background:"#4a0e22",padding:"18px 32px",borderBottom:"3px solid #3a0a1a",position:"sticky",top:0,zIndex:100,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}},
+          h("div",null,
+            h("div",{style:{fontFamily:"'IBM Plex Mono',monospace",fontSize:"0.95rem",color:"#fff",letterSpacing:"0.08em",fontWeight:700}},"PROPERTY DEAL FLOW"),
+            h("div",{style:{fontSize:"0.65rem",color:"rgba(255,255,255,0.6)",marginTop:3}},
+              "HA8 6TQ \u00b7 \u00a31m budget \u00b7 "+actv+"/"+MAX_ACTIVE+" active"+(incomplete>0?" \u00b7 \u26a0 "+incomplete+" incomplete":"")
+            )
+          ),
+          h("div",{style:{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}},
+            syncMsg&&h("span",{style:{fontSize:"0.7rem",color:"#f9c6d0",fontFamily:"'IBM Plex Mono',monospace"}},syncMsg),
+            h("input",{value:userName,onChange:function(e){setUserName(e.target.value);},placeholder:"your name",style:{fontSize:"0.72rem",fontFamily:"'Inter',sans-serif",border:"1px solid rgba(255,255,255,0.3)",borderRadius:20,padding:"5px 14px",color:"#fff",background:"rgba(255,255,255,0.1)",width:130}}),
+            h("button",{onClick:function(){setShowAdd(true);},style:{background:"#fff",color:"#4a0e22",border:"none",borderRadius:6,padding:"8px 18px",fontSize:"0.78rem",fontFamily:"'Inter',sans-serif",cursor:"pointer",fontWeight:700}},"+  Add")
+          )
+        ),
+        h("div",{style:{background:"#3a0a1a",padding:"8px 32px",borderBottom:"1px solid #2a0812",display:"flex",gap:20,flexWrap:"wrap"}},
+          [{dot:"#4caf50",label:"High: "+properties.filter(function(p){return p.priority==="HIGH"&&!p.is_discarded&&!p.is_sold;}).length},{dot:"#ff9800",label:"Medium: "+properties.filter(function(p){return p.priority==="MEDIUM"&&!p.is_discarded&&!p.is_sold;}).length},{dot:"#ef5350",label:"Low: "+properties.filter(function(p){return p.priority==="LOW"&&!p.is_discarded&&!p.is_sold;}).length},{dot:"#f48fb1",label:"Favs: "+favs},{dot:"#81c784",label:"Sold: "+sold},{dot:"#888",label:"Discarded: "+discs}].map(function(item){return h("div",{key:item.label,style:{display:"flex",alignItems:"center",gap:6,fontSize:"0.68rem",color:"rgba(255,255,255,0.7)"}},h("div",{style:{width:6,height:6,borderRadius:"50%",background:item.dot}}),item.label);})
+        ),
+        h("div",{style:{background:"#fff",borderBottom:"1px solid #e2e2e8",padding:"8px 28px",display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}},
+          FILTERS.map(function(f){return h("button",{key:f,className:"filter-btn"+(filter===f?" on":""),onClick:function(){setFilter(f);}},fl(f));}),
+          h("button",{onClick:loadData,style:{marginLeft:"auto",padding:"5px 12px",borderRadius:20,border:"1px solid #ddd",background:"#fff",fontSize:"0.68rem",fontFamily:"'Inter',sans-serif",cursor:"pointer",color:"#888"}},"\u21bb Refresh")
+        ),
+        h("div",{className:"cards-grid"},
+          filtered.map(function(prop){return h(PropertyCard,{key:prop.id,prop:prop,comments:comments[prop.id]||[],expanded:expanded===prop.id,onExpand:function(){setExpanded(expanded===prop.id?null:prop.id);},onFav:function(){toggleFav(prop);},onDiscard:function(){toggleDiscard(prop);},onSold:function(price){markAsSold(prop,price);},onComment:function(text,clear,isQ,p,done){submitComment(prop.id,text,clear,isQ,p,done);}});}),
+          filtered.length===0&&h("div",{style:{gridColumn:"1/-1",textAlign:"center",padding:"80px 20px",color:"#ccc",fontFamily:"'IBM Plex Mono',monospace",fontSize:"0.85rem"}},"No properties match this filter")
+        )
+      );
+    }
+
+    createRoot(document.getElementById("root")).render(h(App,null));
+  </script>
+</body>
+</html>
