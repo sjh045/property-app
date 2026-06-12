@@ -21,7 +21,7 @@
     .icon-btn.del:hover{border-color:#c0392b;background:#fdf0f0;color:#c0392b;}
     .icon-btn.sold-btn:hover{border-color:#2e7d32;background:#f0f7f0;color:#2e7d32;}
     .filter-btn{padding:5px 14px;border-radius:20px;border:1px solid #ddd;background:#fff;font-size:0.72rem;font-family:'Inter',sans-serif;cursor:pointer;font-weight:500;color:#666;transition:all 0.15s;}
-    .filter-btn:hover,.filter-btn.on{background:#5c1a2e;color:#fff;border-color:#5c1a2e;font-weight:600;}
+    .filter-btn:hover{background:#5c1a2e;color:#fff;border-color:#5c1a2e;font-weight:600;}.filter-btn.on{background:#5c1a2e;color:#fff;border-color:#5c1a2e;font-weight:600;}.filter-btn.on-high{background:#2e7d32;color:#fff;border-color:#2e7d32;font-weight:600;}.filter-btn.on-medium{background:#b45309;color:#fff;border-color:#b45309;font-weight:600;}.filter-btn.on-low{background:#c0392b;color:#fff;border-color:#c0392b;font-weight:600;}
     .nav-btn{padding:8px 20px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:0.78rem;font-family:'Inter',sans-serif;cursor:pointer;font-weight:500;color:#666;transition:all 0.15s;}
     .nav-btn.on{background:#4a0e22;color:#fff;border-color:#4a0e22;font-weight:600;}
     .stat{padding:12px 8px;text-align:center;border-right:1px solid #eee;}
@@ -295,16 +295,9 @@
           step==="paste"&&h("div",null,
             h("label",{className:"form-label"},"Paste listing text"),
             h("textarea",{className:"form-textarea",style:{minHeight:160,marginBottom:12},placeholder:"Paste listings from Rightmove/Zoopla emails, agent emails, auction catalogues...",value:listing,onChange:function(e){setListing(e.target.value);}}),
-            h("div",{style:{background:"#f9f9fb",border:"1px solid #eee",borderRadius:8,padding:"12px 14px",marginBottom:16}},
-              h("div",{style:{fontSize:"0.72rem",fontWeight:600,color:"#1a1a2e",marginBottom:10}},"How many of the best to add?"),
-              h("div",{style:{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}},
-                [3,5,10,15,20,25].map(function(n){return h("button",{key:n,onClick:function(){setMaxProps(n);},style:{padding:"5px 14px",borderRadius:20,border:"1px solid",borderColor:maxProps===n?"#5c1a2e":"#ddd",background:maxProps===n?"#5c1a2e":"#fff",color:maxProps===n?"#fff":"#888",fontSize:"0.75rem",fontFamily:"'Inter',sans-serif",cursor:"pointer",fontWeight:maxProps===n?600:400}},"Top "+n);}),
-                h("span",{style:{fontSize:"0.7rem",color:"#aaa"}},"\u2014 Claude ranks and filters")
-              )
-            ),
-            h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
-              h("span",{style:{fontSize:"0.7rem",color:"#aaa"}},listing.trim()?(listing.length+" chars"):"Nothing pasted yet"),
-              h("button",{className:"gold-btn",onClick:runAnalysis,disabled:!listing.trim()},"Find Top "+maxProps)
+            h("div",{style:{display:"flex",justifyContent:"flex-end",gap:10}},
+              h("button",{className:"filter-btn",onClick:onClose},"Cancel"),
+              h("button",{className:"gold-btn",onClick:runAnalysis,disabled:!listing.trim()},"Add Property")
             )
           ),
           step==="review"&&form&&h("div",null,
@@ -343,12 +336,12 @@
       var loading=useState(true),setLoading=loading[1];loading=loading[0];
 
       useEffect(function(){
-        supabase.from("pipeline_log").select("*").order("ran_at",{ascending:false}).limit(50).then(function(r){
+        supabase.from("pipeline_log").select("*").gte("ran_at",new Date(Date.now()-10*24*60*60*1000).toISOString()).order("ran_at",{ascending:false}).limit(200).then(function(r){
           setLogs(r.data||[]);setLoading(false);
         });
       },[]);
 
-      var sources=["Rightmove","Zoopla","Auction (email)"];
+      var sources=["Rightmove","Zoopla","propertyauctions.io","Savills Auctions","Allsop","Barnard Marcus","Strettons","SDL Auctions","Network Auctions","iamsold","Clive Emson"];
       var totalAdded=logs.reduce(function(s,l){return s+(l.properties_added||0);},0);
       var totalAnalysed=logs.reduce(function(s,l){return s+(l.properties_analysed||0);},0);
       var totalEmails=logs.reduce(function(s,l){return s+(l.emails_processed||0);},0);
@@ -502,7 +495,7 @@
             {label:"True net",value:fmtPct(prop.true_net_yield_pct),sub:"after costs \u24d8",green:prop.true_net_yield_pct>=3.5,type:"True net"}
           ].map(function(s){
             if(!s.type)return h("div",{key:s.label,className:"stat"},h("div",{style:{fontSize:"0.58rem",textTransform:"uppercase",letterSpacing:"0.08em",color:"#aaa",marginBottom:3}},s.label),h("div",{style:{fontSize:"0.95rem",fontWeight:600,color:"#1a1a2e",fontFamily:"'IBM Plex Mono',monospace"}},s.value),h("div",{style:{fontSize:"0.58rem",color:"#bbb",marginTop:2}},s.sub));
-            return h("div",{key:s.label,className:"yield-stat",onClick:function(e){e.stopPropagation();setYieldPopup(yieldPopup===s.type?null:s.type);}},
+            return h("div",{key:s.label,className:"yield-stat",onClick:function(e){e.stopPropagation();setYieldPopup(yieldPopup===s.type?null:s.type);},style:{padding:"12px 8px",textAlign:"center",borderRight:"1px solid #eee",cursor:"pointer",position:"relative",transition:"background 0.15s",background:yieldPopup===s.type?"#fdf6f8":"transparent"}},
               h("div",{style:{fontSize:"0.58rem",textTransform:"uppercase",letterSpacing:"0.08em",color:"#aaa",marginBottom:3}},s.label),
               h("div",{style:{fontSize:"0.95rem",fontWeight:600,color:s.green?"#2e7d32":"#1a1a2e",fontFamily:"'IBM Plex Mono',monospace"}},s.value),
               h("div",{style:{fontSize:"0.58rem",color:"#bbb",marginTop:2}},s.sub),
@@ -713,7 +706,7 @@
           )
         ),
         view==="properties"&&h("div",{style:{background:"#fff",borderBottom:"1px solid #e2e2e8",padding:"8px 28px",display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}},
-          FILTERS.map(function(f){return h("button",{key:f,className:"filter-btn"+(filter===f?" on":""),onClick:function(){setFilter(f);}},fl(f));}),
+          FILTERS.map(function(f){var cls="filter-btn";if(filter===f){  if(f==="HIGH")cls+=" on-high";  else if(f==="MEDIUM")cls+=" on-medium";  else if(f==="LOW")cls+=" on-low";  else cls+=" on";}return h("button",{key:f,className:cls,onClick:function(){setFilter(f);}},fl(f));}),
           h("button",{onClick:loadData,style:{marginLeft:"auto",padding:"5px 12px",borderRadius:20,border:"1px solid #ddd",background:"#fff",fontSize:"0.68rem",fontFamily:"'Inter',sans-serif",cursor:"pointer",color:"#888"}},"\u21bb Refresh")
         ),
         view==="properties"&&h("div",{className:"cards-grid"},
