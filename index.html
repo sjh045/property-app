@@ -13,7 +13,7 @@
     .card:hover{box-shadow:0 4px 20px rgba(0,0,0,0.1);transform:translateY(-1px);}
     .card.fav{border-color:#7c3d52;box-shadow:0 0 0 2px rgba(124,61,82,0.15);}
     .card.disc{opacity:0.5;border-color:#c0392b;}
-    .card.sold{opacity:0.7;border-color:#2e7d32;}
+    .card.sold{opacity:0.7;border-color:#2e7d32;}.card.new-prop{border-color:#4a0e22;box-shadow:0 0 0 2px rgba(74,14,34,0.2);}
     .card.incomplete{border-color:#b45309;border-style:dashed;}
     .icon-btn{background:#f9f9fb;border:1px solid #ddd;border-radius:6px;width:34px;height:34px;cursor:pointer;font-size:0.9rem;display:flex;align-items:center;justify-content:center;transition:all 0.15s;color:#888;}
     .icon-btn:hover{border-color:#7c3d52;background:#f5eef1;color:#7c3d52;}
@@ -29,7 +29,7 @@
     .yield-stat{padding:12px 8px;text-align:center;border-right:1px solid #eee;cursor:pointer;position:relative;transition:background 0.15s;}
     .yield-stat:last-child{border-right:none;}
     .yield-stat:hover{background:#fdf6f8;}
-    .yield-popup{position:absolute;top:100%;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;border-radius:8px;padding:12px 16px;font-size:0.72rem;width:240px;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,0.2);margin-top:6px;text-align:left;}
+    .yield-popup{position:absolute;top:100%;background:#1a1a2e;color:#fff;border-radius:8px;padding:12px 16px;font-size:0.72rem;width:240px;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,0.2);margin-top:6px;text-align:left;}
     .yield-popup::before{content:'';position:absolute;top:-6px;left:50%;transform:translateX(-50%);border:6px solid transparent;border-bottom-color:#1a1a2e;border-top:none;}
     .yield-popup-row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.1);font-size:0.7rem;}
     .yield-popup-row:last-child{border-bottom:none;font-weight:700;padding-top:6px;}
@@ -191,7 +191,7 @@
 
     // ── YIELD POPUP COMPONENT ─────────────────────────────
     function YieldPopup(props){
-      var prop=props.prop,type=props.type;
+      var prop=props.prop,type=props.type,col=props.col||0;
       var price=Number(prop.price)||0,reno=Number(prop.reno_total)||0;
       var s=Number(prop.sdlt)||sdlt(price);
       var legal=Number(prop.legal_fees)||4000,survey=Number(prop.survey)||500;
@@ -199,7 +199,7 @@
       var rent=Number(prop.est_market_rent)||0,annual=rent*12;
       var tg=Number(prop.true_gross_yield_pct)||0,tn=Number(prop.true_net_yield_pct)||0;
       var gy=Number(prop.gross_yield_pct)||0;
-      return h("div",{className:"yield-popup",onClick:function(e){e.stopPropagation();}},
+      return h("div",{className:"yield-popup",style:{left:col>=2?"auto":"0",right:col>=2?"0":"auto"},onClick:function(e){e.stopPropagation();}},
         h("div",{style:{fontWeight:700,marginBottom:8,color:"#00e5a0",fontSize:"0.72rem",textTransform:"uppercase",letterSpacing:"0.08em"}},type+" Yield Calculation"),
         h("div",{className:"yield-popup-row"},h("span",{style:{color:"#aaa"}},"Annual rent"),h("span",null,fmt(annual))),
         type==="Gross (on price)"&&h("div",{className:"yield-popup-row"},h("span",{style:{color:"#aaa"}},"Purchase price"),h("span",null,fmt(price))),
@@ -414,13 +414,13 @@
     // ── PROPERTY CARD ─────────────────────────────────────
     function PropertyCard(props){
       var prop=props.prop,comments=props.comments,expanded=props.expanded;
-      var onExpand=props.onExpand,onFav=props.onFav,onDiscard=props.onDiscard,onSold=props.onSold,onComment=props.onComment,onUpdate=props.onUpdate;
+      var onExpand=props.onExpand,onFav=props.onFav,onDiscard=props.onDiscard,onSold=props.onSold,onComment=props.onComment,onUpdate=props.onUpdate,lastVisit=props.lastVisit||new Date(0).toISOString();
       var ns=useState(""),note=ns[0],setNote=ns[1];
       var ais=useState(false),aiLoading=ais[0],setAiLoading=ais[1];
       var yps=useState(null),yieldPopup=yps[0],setYieldPopup=yps[1];
-      var pc=PC(prop.priority),guide=isGuide(prop);
+      var pc=PC(prop.priority),guide=isGuide(prop);var isNew=prop.created_at&&new Date(prop.created_at)>new Date(lastVisit);
       var incomplete=prop.data_quality==="incomplete"||!prop.address||prop.address.length<5||!prop.price;
-      var cardClass="card"+(prop.is_favourite?" fav":"")+(prop.is_discarded?" disc":"")+(prop.is_sold?" sold":"")+(incomplete?" incomplete":"");
+      var cardClass="card"+(prop.is_favourite?" fav":"")+(prop.is_discarded?" disc":"")+(prop.is_sold?" sold":"")+(incomplete?" incomplete":"")+(isNew&&!prop.is_discarded&&!prop.is_sold?" new-prop":"");
 
       function handleSold(){var raw=window.prompt("Enter sale price (numbers only):"),digits="";if(raw!==null){for(var i=0;i<raw.length;i++){if(raw[i]>="0"&&raw[i]<="9")digits+=raw[i];}onSold(digits?Number(digits):null);}}
 
@@ -467,7 +467,7 @@
                 h("span",{style:{fontSize:"0.62rem",fontWeight:600,padding:"3px 8px",borderRadius:4,textTransform:"uppercase",letterSpacing:"0.05em",background:pc.badge,color:pc.text}},(prop.priority==="HIGH"?"\u25cf ":"")+prop.priority+" PRIORITY"),
                 h("span",{style:{fontSize:"0.62rem",fontWeight:500,padding:"3px 8px",borderRadius:4,background:"#f0f0f4",color:"#666"}},(prop.type||"")+" \u00b7 "+(prop.tenure||"")),
                 prop.is_favourite&&h("span",{style:{fontSize:"0.62rem",fontWeight:600,padding:"3px 8px",borderRadius:4,background:"#f5eef1",color:"#7c3d52"}},"\u2665 FAV"),
-                prop.is_sold&&h("span",{style:{fontSize:"0.62rem",fontWeight:600,padding:"3px 8px",borderRadius:4,background:"#e8f5e9",color:"#2e7d32"}},"\u2713 SOLD"),
+                prop.is_sold&&h("span",{style:{fontSize:"0.62rem",fontWeight:600,padding:"3px 8px",borderRadius:4,background:"#e8f5e9",color:"#2e7d32"}},"\u2713 SOLD"),isNew&&!prop.is_discarded&&!prop.is_sold&&h("span",{style:{fontSize:"0.62rem",fontWeight:700,padding:"3px 8px",borderRadius:4,background:"#4a0e22",color:"#fff",letterSpacing:"0.05em"}},"NEW"),
                 guide&&h("span",{style:{fontSize:"0.62rem",fontWeight:600,padding:"3px 8px",borderRadius:4,background:"#fff8e1",color:"#b45309"}},"\u{1F528} GUIDE")
               )
             ),
@@ -489,17 +489,17 @@
         ),
         h("div",{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",borderBottom:"1px solid #eee"}},
           [
-            {label:"Est. rent",value:fmt(prop.est_market_rent),sub:"pcm",type:null},
-            {label:"Gross yield",value:fmtPct(prop.gross_yield_pct),sub:"on price \u24d8",green:prop.gross_yield_pct>=5,type:"Gross (on price)"},
-            {label:"True gross",value:fmtPct(prop.true_gross_yield_pct),sub:"all-in \u24d8",green:prop.true_gross_yield_pct>=4.5,type:"True gross"},
-            {label:"True net",value:fmtPct(prop.true_net_yield_pct),sub:"after costs \u24d8",green:prop.true_net_yield_pct>=3.5,type:"True net"}
+            {label:"Est. rent",value:fmt(prop.est_market_rent),sub:"pcm",type:null,col:0},
+            {label:"Gross yield",value:fmtPct(prop.gross_yield_pct),sub:"on price \u24d8",green:prop.gross_yield_pct>=5,type:"Gross (on price)",col:1},
+            {label:"True gross",value:fmtPct(prop.true_gross_yield_pct),sub:"all-in \u24d8",green:prop.true_gross_yield_pct>=4.5,type:"True gross",col:2},
+            {label:"True net",value:fmtPct(prop.true_net_yield_pct),sub:"after costs \u24d8",green:prop.true_net_yield_pct>=3.5,type:"True net",col:3}
           ].map(function(s){
             if(!s.type)return h("div",{key:s.label,className:"stat"},h("div",{style:{fontSize:"0.58rem",textTransform:"uppercase",letterSpacing:"0.08em",color:"#aaa",marginBottom:3}},s.label),h("div",{style:{fontSize:"0.95rem",fontWeight:600,color:"#1a1a2e",fontFamily:"'IBM Plex Mono',monospace"}},s.value),h("div",{style:{fontSize:"0.58rem",color:"#bbb",marginTop:2}},s.sub));
             return h("div",{key:s.label,className:"yield-stat",onClick:function(e){e.stopPropagation();setYieldPopup(yieldPopup===s.type?null:s.type);},style:{padding:"12px 8px",textAlign:"center",borderRight:"1px solid #eee",cursor:"pointer",position:"relative",transition:"background 0.15s",background:yieldPopup===s.type?"#fdf6f8":"transparent"}},
               h("div",{style:{fontSize:"0.58rem",textTransform:"uppercase",letterSpacing:"0.08em",color:"#aaa",marginBottom:3}},s.label),
               h("div",{style:{fontSize:"0.95rem",fontWeight:600,color:s.green?"#2e7d32":"#1a1a2e",fontFamily:"'IBM Plex Mono',monospace"}},s.value),
               h("div",{style:{fontSize:"0.58rem",color:"#bbb",marginTop:2}},s.sub),
-              yieldPopup===s.type&&h(YieldPopup,{prop:prop,type:s.type})
+              yieldPopup===s.type&&h(YieldPopup,{prop:prop,type:s.type,col:s.col})
             );
           })
         ),
@@ -593,7 +593,14 @@
       var vs=useState("properties"),view=vs[0],setView=vs[1];
       var syncTimer=useRef(null);
 
-      useEffect(function(){loadData();},[]);
+      var lastVisitKey="dealflow_last_visit";
+      var lastVisit=localStorage.getItem(lastVisitKey)||new Date(0).toISOString();
+      useEffect(function(){
+        loadData();
+        var t=setTimeout(function(){localStorage.setItem(lastVisitKey,new Date().toISOString());},3000);
+        return function(){clearTimeout(t);};
+      },[]);
+
 
       function loadData(){
         setLoading(true);
@@ -710,7 +717,7 @@
           h("button",{onClick:loadData,style:{marginLeft:"auto",padding:"5px 12px",borderRadius:20,border:"1px solid #ddd",background:"#fff",fontSize:"0.68rem",fontFamily:"'Inter',sans-serif",cursor:"pointer",color:"#888"}},"\u21bb Refresh")
         ),
         view==="properties"&&h("div",{className:"cards-grid"},
-          filtered.map(function(prop){return h(PropertyCard,{key:prop.id,prop:prop,comments:comments[prop.id]||[],expanded:expanded===prop.id,onExpand:function(){setExpanded(expanded===prop.id?null:prop.id);},onFav:function(){toggleFav(prop);},onDiscard:function(){toggleDiscard(prop);},onSold:function(price){markAsSold(prop,price);},onComment:function(text,clear,isQ,p,done){submitComment(prop.id,text,clear,isQ,p,done);},onUpdate:function(updated,commentText,cmd){updateProperty(updated,commentText,cmd);}});}),
+          filtered.map(function(prop){return h(PropertyCard,{key:prop.id,prop:prop,comments:comments[prop.id]||[],expanded:expanded===prop.id,lastVisit:lastVisit,onExpand:function(){setExpanded(expanded===prop.id?null:prop.id);},onFav:function(){toggleFav(prop);},onDiscard:function(){toggleDiscard(prop);},onSold:function(price){markAsSold(prop,price);},onComment:function(text,clear,isQ,p,done){submitComment(prop.id,text,clear,isQ,p,done);},onUpdate:function(updated,commentText,cmd){updateProperty(updated,commentText,cmd);}});}),
           filtered.length===0&&h("div",{style:{gridColumn:"1/-1",textAlign:"center",padding:"80px 20px",color:"#ccc",fontFamily:"'IBM Plex Mono',monospace",fontSize:"0.85rem"}},"No properties match this filter")
         ),
         view==="pipeline"&&h(PipelineView,null)
