@@ -371,7 +371,7 @@
       return h("div",{className:"pipeline-grid"},
         h("div",{style:{marginBottom:24}},
           h("div",{style:{fontFamily:"'IBM Plex Mono',monospace",fontSize:"1.1rem",fontWeight:700,color:"#4a0e22",marginBottom:4}},"Pipeline Status"),
-          h("div",{style:{fontSize:"0.78rem",color:"#888"}},"Email scan runs every 10 minutes via Google Apps Script on sunil.j.harji@gmail.com")
+          h("div",{style:{fontSize:"0.78rem",color:"#888"}},"Email scan runs every hour via Google Apps Script on sunil.j.harji@gmail.com")
         ),
         h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:16,marginBottom:24}},
           [
@@ -387,19 +387,23 @@
           })
         ),
         h("div",{className:"pipeline-card",style:{marginBottom:16}},
-          h("div",{className:"stitle",style:{marginBottom:12}},"Sources monitored"),
+          h("div",{className:"stitle",style:{marginBottom:4}},"Sources monitored"),
+          h("div",{style:{fontSize:"0.7rem",color:"#aaa",marginBottom:12,lineHeight:1.5}},"Rightmove/Zoopla emails are auto-analysed and added directly. Auction house emails are catalogue notifications only \u2014 they don't contain parseable individual lots, so \u201cadded\u201d will normally stay at 0. A green dot means a catalogue email was received; check the Notes column below and review the catalogue manually on the auction site."),
           h("div",{style:{display:"flex",flexDirection:"column",gap:8}},
             sources.map(function(src){
               var srcLogs=logs.filter(function(l){return (l.source||"").toLowerCase().indexOf(src.toLowerCase())!==-1;});
               var lastSrc=srcLogs.length>0?srcLogs[0].ran_at:null;
               var added=srcLogs.reduce(function(s,l){return s+(l.properties_added||0);},0);
+              var isAuction=src!=="Rightmove"&&src!=="Zoopla";
+              var statusText=added>0?(added+" added"):(isAuction&&lastSrc?"Catalogue received \u2014 review manually":isAuction?"No catalogue yet":"0 added");
+              var statusColor=added>0?"#2e7d32":(isAuction&&lastSrc?"#b45309":"#aaa");
               return h("div",{key:src,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:"#f9f9fb",borderRadius:8,border:"1px solid #eee"}},
                 h("div",{style:{display:"flex",alignItems:"center",gap:8}},
                   h("span",{className:"status-dot",style:{background:lastSrc?"#2e7d32":"#ccc"}}),
                   h("span",{style:{fontWeight:600,color:"#1a1a2e",fontSize:"0.82rem"}},src)
                 ),
                 h("div",{style:{textAlign:"right"}},
-                  h("div",{style:{fontSize:"0.72rem",color:"#2e7d32",fontWeight:600}},added+" added"),
+                  h("div",{style:{fontSize:"0.72rem",color:statusColor,fontWeight:600}},statusText),
                   h("div",{style:{fontSize:"0.68rem",color:"#aaa"}},lastSrc?new Date(lastSrc).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"No data yet")
                 )
               );
@@ -607,7 +611,8 @@
       var cs=useState({}),comments=cs[0],setComments=cs[1];
       var fs=useState("ALL"),filter=fs[0],setFilter=fs[1];
       var ls=useState(true),loading=ls[0],setLoading=ls[1];
-      var ns=useState(""),userName=ns[0],setUserName=ns[1];
+      var ns=useState(localStorage.getItem("dealflow_user_name")||""),userName=ns[0],setUserNameRaw=ns[1];
+      function setUserName(v){setUserNameRaw(v);localStorage.setItem("dealflow_user_name",v);}
       var ss=useState(""),syncMsg=ss[0],setSyncMsg=ss[1];
       var es=useState(null),expanded=es[0],setExpanded=es[1];
       var as=useState(false),showAdd=as[0],setShowAdd=as[1];
