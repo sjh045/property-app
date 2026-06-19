@@ -166,6 +166,20 @@
     // ── DETECT AND APPLY COMMENT COMMANDS ────────────────
     function detectCommand(text){
       var low=text.toLowerCase();
+      // URL command — checked first since it needs different parsing than numeric fields
+      var urlKeys=["listing url","listing link","property url","property link","url is","link is"];
+      var hasUrlKey=urlKeys.some(function(k){return low.indexOf(k)!==-1;});
+      var urlMatch=text.match(/https?:\/\/[^\s)]+/);
+      if(hasUrlKey&&urlMatch){
+        // Strip tracking params and fragments — keep clean canonical URL
+        var cleanUrl=urlMatch[0].split("?")[0].split("#")[0];
+        return {field:"listing_url",value:cleanUrl,label:"listing url",isUrl:true};
+      }
+      // If a URL is pasted with no keyword at all, still treat it as a listing_url update
+      if(!hasUrlKey&&urlMatch&&text.trim()===urlMatch[0].trim()){
+        var cleanUrl2=urlMatch[0].split("?")[0].split("#")[0];
+        return {field:"listing_url",value:cleanUrl2,label:"listing url",isUrl:true};
+      }
       var fields=[
         {keys:["renovation cost","reno cost","reno","renovation"],field:"reno_total"},
         {keys:["rent","rental"],field:"est_market_rent"},
@@ -594,7 +608,7 @@
               );
             })
           ),
-          h("textarea",{value:note,onChange:function(e){setNote(e.target.value);},placeholder:"Comment, question (end with ?), or command e.g. 'reno cost is \u00a310k'",style:{width:"100%",minHeight:48,border:"1px solid #ddd",borderRadius:8,padding:"8px 10px",fontSize:"0.75rem",color:"#1a1a2e",background:"#fff",marginBottom:8,resize:"vertical",fontFamily:"'Inter',sans-serif"}}),
+          h("textarea",{value:note,onChange:function(e){setNote(e.target.value);},placeholder:"Comment, question (end with ?), or command e.g. 'reno cost is \u00a310k' or paste a listing url",style:{width:"100%",minHeight:48,border:"1px solid #ddd",borderRadius:8,padding:"8px 10px",fontSize:"0.75rem",color:"#1a1a2e",background:"#fff",marginBottom:8,resize:"vertical",fontFamily:"'Inter',sans-serif"}}),
           h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}},
             h("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},buildLinks()),
             h("button",{className:"submit-btn",onClick:handleComment,disabled:aiLoading},
@@ -668,8 +682,14 @@
 
       function updateProperty(updated,commentText,cmd){
         setProperties(function(ps){return ps.map(function(p){return p.id===updated.id?updated:p;});});
-        var fieldLabel=cmd.label,newVal=cmd.field==="est_market_rent"?fmt(cmd.value):fmt(cmd.value);
-        var changeNote="Updated "+fieldLabel+" to "+newVal+". True gross yield now "+fmtPct(updated.true_gross_yield_pct)+". Comment: \""+commentText+"\"";
+        var fieldLabel=cmd.label;
+        var changeNote;
+        if(cmd.isUrl){
+          changeNote="Updated listing URL to "+cmd.value+". Comment: \""+commentText+"\"";
+        } else {
+          var newVal=fmt(cmd.value);
+          changeNote="Updated "+fieldLabel+" to "+newVal+". True gross yield now "+fmtPct(updated.true_gross_yield_pct)+". Comment: \""+commentText+"\"";
+        }
         supabase.from("properties").update(Object.assign({updated_at:new Date().toISOString()},updated)).eq("id",updated.id).then(function(r){
           sync(r.error?"Update failed":"\u{1F527} "+fieldLabel+" updated");
         });
