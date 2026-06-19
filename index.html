@@ -166,19 +166,18 @@
     // ── DETECT AND APPLY COMMENT COMMANDS ────────────────
     function detectCommand(text){
       var low=text.toLowerCase();
-      // URL command — checked first since it needs different parsing than numeric fields
-      var urlKeys=["listing url","listing link","property url","property link","url is","link is"];
-      var hasUrlKey=urlKeys.some(function(k){return low.indexOf(k)!==-1;});
-      var urlMatch=text.match(/https?:\/\/[^\s)]+/);
-      if(hasUrlKey&&urlMatch){
-        // Strip tracking params and fragments — keep clean canonical URL
-        var cleanUrl=urlMatch[0].split("?")[0].split("#")[0];
-        return {field:"listing_url",value:cleanUrl,label:"listing url",isUrl:true};
-      }
-      // If a URL is pasted with no keyword at all, still treat it as a listing_url update
-      if(!hasUrlKey&&urlMatch&&text.trim()===urlMatch[0].trim()){
-        var cleanUrl2=urlMatch[0].split("?")[0].split("#")[0];
-        return {field:"listing_url",value:cleanUrl2,label:"listing url",isUrl:true};
+      // URL command — checked first since it needs different parsing than numeric fields.
+      // Any property listing URL found anywhere in the comment is treated as a listing_url
+      // update, regardless of surrounding text, keywords, or whitespace.
+      var urlMatch=text.match(/https?:\/\/[^\s)\]]+/);
+      if(urlMatch){
+        var isPropertyUrl=/rightmove\.co\.uk\/properties\/\d+/i.test(urlMatch[0])||
+          /zoopla\.co\.uk\/for-sale\/details\/\d+/i.test(urlMatch[0])||
+          /propertyauctions\.io|sdlauctions\.co\.uk|allsop\.co\.uk|savills\.com|barnardmarcus|strettons\.co\.uk|networkauctions|iamsold\.co\.uk|cliveemson\.co\.uk/i.test(urlMatch[0]);
+        if(isPropertyUrl){
+          var cleanUrl=urlMatch[0].split("?")[0].split("#")[0].replace(/[.,;]+$/,"");
+          return {field:"listing_url",value:cleanUrl,label:"listing url",isUrl:true};
+        }
       }
       var fields=[
         {keys:["renovation cost","reno cost","reno","renovation"],field:"reno_total"},
