@@ -116,16 +116,32 @@
       return ((prop.price_label||"").toLowerCase().indexOf("guide")!==-1)||(prop.auction_house&&prop.auction_house.length>0);
     }
 
+    // ── DEAL FLOW CRITERIA DEFINITIONS (Deal_Flow_Criteria.pdf) ──
+    // Gross yield      = annual rent / purchase price
+    // True Gross yield = annual rent / (price + SDLT(Ltd Co) + legal fees [£3,000 flat])
+    // True Net yield    = annual rent / (price + SDLT(Ltd Co) + legal fees + renovation cost)
+    // Total all-in cost = price + SDLT(Ltd Co) + legal fees (£3,000) + renovation cost
+    // Value created     = post-reno market value - purchase price - renovation cost
+    var LEGAL_FEES_FLAT = 3000;
+
     function enrich(p){
-      var price=Number(p.price)||0,reno=Number(p.reno_total)||0,s=sdlt(price),total=price+s+4000+500+reno;
-      var rent=Number(p.est_market_rent)||0,tg=(rent>0&&total>0)?parseFloat(((rent*12)/total*100).toFixed(2)):0,tn=parseFloat((tg*0.77).toFixed(2));
+      var price=Number(p.price)||0,reno=Number(p.reno_total)||0,s=sdlt(price);
+      var legal=LEGAL_FEES_FLAT;
+      var trueGrossBase=price+s+legal;            // price + SDLT + legal (no reno)
+      var total=trueGrossBase+reno;                // total all-in cost = + renovation
+      var rent=Number(p.est_market_rent)||0,annual=rent*12;
+      var gy=(rent>0&&price>0)?parseFloat((annual/price*100).toFixed(2)):0;
+      var tg=(rent>0&&trueGrossBase>0)?parseFloat((annual/trueGrossBase*100).toFixed(2)):0;
+      var tn=(rent>0&&total>0)?parseFloat((annual/total*100).toFixed(2)):0;
       var lo=Number(p.est_market_value_low)||0,hi=Number(p.est_market_value_high)||0;
       var refVal=Number(p.est_refinance_value)||Math.round((lo+hi)/2),mort=Math.round(refVal*0.75);
+      var valueCreated=refVal?Math.round(refVal-price-reno):null; // Value created = post-reno MV - price - reno
       var guide=isGuide(p),maxBid=guide?(Number(p.auction_max_bid)||Math.round(price*1.22)):null;
-      var maxBidTotal=maxBid?maxBid+sdlt(maxBid)+4000+500+reno:null;
-      var maxBidYield=(maxBid&&rent>0&&maxBidTotal>0)?parseFloat(((rent*12)/maxBidTotal*100).toFixed(2)):null;
+      var maxBidTrueGrossBase=maxBid?maxBid+sdlt(maxBid)+legal:null;
+      var maxBidTotal=maxBid?maxBidTrueGrossBase+reno:null;
+      var maxBidYield=(maxBid&&rent>0&&maxBidTrueGrossBase>0)?parseFloat((annual/maxBidTrueGrossBase*100).toFixed(2)):null;
       var dq=(!p.address||p.address.length<5||p.address.indexOf("Unknown")!==-1||!price||!rent)?"incomplete":"complete";
-      return Object.assign({},p,{sdlt:s,legal_fees:4000,survey:500,total_acquisition_cost:total,true_gross_yield_pct:tg,true_net_yield_pct:tn,est_refinance_value:refVal,equity_created:Math.round(refVal-price-reno),capital_remaining:Math.round(total-mort),auction_guide_low:p.auction_guide_low||(guide?Math.round(price*1.15):null),auction_guide_high:p.auction_guide_high||(guide?Math.round(price*1.30):null),auction_max_bid:maxBid,auction_max_bid_yield:maxBidYield,auction_max_bid_total:maxBidTotal,data_quality:dq,is_favourite:false,is_discarded:false,is_sold:false});
+      return Object.assign({},p,{sdlt:s,legal_fees:legal,gross_yield_pct:gy,total_acquisition_cost:total,true_gross_yield_pct:tg,true_net_yield_pct:tn,est_refinance_value:refVal,equity_created:valueCreated,value_created:valueCreated,capital_remaining:Math.round(total-mort),auction_guide_low:p.auction_guide_low||(guide?Math.round(price*1.15):null),auction_guide_high:p.auction_guide_high||(guide?Math.round(price*1.30):null),auction_max_bid:maxBid,auction_max_bid_yield:maxBidYield,auction_max_bid_total:maxBidTotal,data_quality:dq,is_favourite:false,is_discarded:false,is_sold:false});
     }
 
     function callEdge(chunkText,maxResults,stackContext){
@@ -155,7 +171,6 @@
         {keys:["rent","rental"],field:"est_market_rent"},
         {keys:["price","asking price"],field:"price"},
         {keys:["legal fees","legal"],field:"legal_fees"},
-        {keys:["survey"],field:"survey"},
       ];
       for(var i=0;i<fields.length;i++){
         for(var j=0;j<fields[i].keys.length;j++){
@@ -174,17 +189,21 @@
     function applyCommand(prop,cmd){
       var updated=Object.assign({},prop);
       updated[cmd.field]=cmd.value;
-      // Recalculate
+      // Recalculate using Deal Flow Criteria definitions
       var price=Number(updated.price)||0,reno=Number(updated.reno_total)||0,s=sdlt(price);
-      var total=price+s+(Number(updated.legal_fees)||4000)+(Number(updated.survey)||500)+reno;
-      var rent=Number(updated.est_market_rent)||0;
-      var tg=(rent>0&&total>0)?parseFloat(((rent*12)/total*100).toFixed(2)):0;
-      var tn=parseFloat((tg*0.77).toFixed(2));
+      var legal=LEGAL_FEES_FLAT;
+      var trueGrossBase=price+s+legal;
+      var total=trueGrossBase+reno;
+      var rent=Number(updated.est_market_rent)||0,annual=rent*12;
+      var gy=(rent>0&&price>0)?parseFloat((annual/price*100).toFixed(2)):0;
+      var tg=(rent>0&&trueGrossBase>0)?parseFloat((annual/trueGrossBase*100).toFixed(2)):0;
+      var tn=(rent>0&&total>0)?parseFloat((annual/total*100).toFixed(2)):0;
       var lo=Number(updated.est_market_value_low)||0,hi=Number(updated.est_market_value_high)||0;
       var refVal=Number(updated.est_refinance_value)||Math.round((lo+hi)/2),mort=Math.round(refVal*0.75);
-      updated.sdlt=s;updated.total_acquisition_cost=total;
+      var valueCreated=refVal?Math.round(refVal-price-reno):null;
+      updated.sdlt=s;updated.legal_fees=legal;updated.gross_yield_pct=gy;updated.total_acquisition_cost=total;
       updated.true_gross_yield_pct=tg;updated.true_net_yield_pct=tn;
-      updated.equity_created=Math.round(refVal-price-reno);
+      updated.equity_created=valueCreated;updated.value_created=valueCreated;
       updated.capital_remaining=Math.round(total-mort);
       return updated;
     }
@@ -194,29 +213,31 @@
       var prop=props.prop,type=props.type,col=props.col||0;
       var price=Number(prop.price)||0,reno=Number(prop.reno_total)||0;
       var s=Number(prop.sdlt)||sdlt(price);
-      var legal=Number(prop.legal_fees)||4000,survey=Number(prop.survey)||500;
-      var total=Number(prop.total_acquisition_cost)||(price+s+legal+survey+reno);
+      var legal=Number(prop.legal_fees)||LEGAL_FEES_FLAT;
+      var trueGrossBase=price+s+legal;          // True Gross denominator (no reno)
+      var trueNetBase=trueGrossBase+reno;        // True Net denominator (+ reno)
       var rent=Number(prop.est_market_rent)||0,annual=rent*12;
-      var tg=Number(prop.true_gross_yield_pct)||0,tn=Number(prop.true_net_yield_pct)||0;
       var gy=Number(prop.gross_yield_pct)||0;
+      var tg=Number(prop.true_gross_yield_pct)||0,tn=Number(prop.true_net_yield_pct)||0;
+      var isGross=type==="Gross (on price)",isTrueGross=type==="True gross",isTrueNet=type==="True net";
+      var denominator=isGross?price:isTrueGross?trueGrossBase:trueNetBase;
+      var yieldVal=isGross?gy:isTrueGross?tg:tn;
       return h("div",{className:"yield-popup",style:{left:col>=2?"auto":"0",right:col>=2?"0":"auto"},onClick:function(e){e.stopPropagation();}},
         h("div",{style:{fontWeight:700,marginBottom:8,color:"#00e5a0",fontSize:"0.72rem",textTransform:"uppercase",letterSpacing:"0.08em"}},type+" Yield Calculation"),
         h("div",{className:"yield-popup-row"},h("span",{style:{color:"#aaa"}},"Annual rent"),h("span",null,fmt(annual))),
-        type==="Gross (on price)"&&h("div",{className:"yield-popup-row"},h("span",{style:{color:"#aaa"}},"Purchase price"),h("span",null,fmt(price))),
-        type!=="Gross (on price)"&&h("div",{className:"yield-popup-row"},h("span",{style:{color:"#aaa"}},"Purchase price"),h("span",null,fmt(price))),
-        type!=="Gross (on price)"&&h("div",{className:"yield-popup-row"},h("span",{style:{color:"#aaa"}},"SDLT (Ltd Co)"),h("span",{style:{color:"#c0392b"}},fmt(s))),
-        type!=="Gross (on price)"&&h("div",{className:"yield-popup-row"},h("span",{style:{color:"#aaa"}},"Legal fees"),h("span",{style:{color:"#c0392b"}},fmt(legal))),
-        type!=="Gross (on price)"&&h("div",{className:"yield-popup-row"},h("span",{style:{color:"#aaa"}},"Survey"),h("span",{style:{color:"#c0392b"}},fmt(survey))),
-        type!=="Gross (on price)"&&h("div",{className:"yield-popup-row"},h("span",{style:{color:"#aaa"}},"Renovation"),h("span",{style:{color:"#c0392b"}},fmt(reno))),
-        h("div",{className:"yield-popup-row"},h("span",{style:{color:"#aaa"}},"Total cost"),h("span",null,fmt(type==="Gross (on price)"?price:total))),
+        h("div",{className:"yield-popup-row"},h("span",{style:{color:"#aaa"}},"Purchase price"),h("span",null,fmt(price))),
+        !isGross&&h("div",{className:"yield-popup-row"},h("span",{style:{color:"#aaa"}},"SDLT (Ltd Co)"),h("span",{style:{color:"#c0392b"}},fmt(s))),
+        !isGross&&h("div",{className:"yield-popup-row"},h("span",{style:{color:"#aaa"}},"Legal fees"),h("span",{style:{color:"#c0392b"}},fmt(legal))),
+        isTrueNet&&h("div",{className:"yield-popup-row"},h("span",{style:{color:"#aaa"}},"Renovation"),h("span",{style:{color:"#c0392b"}},fmt(reno))),
+        h("div",{className:"yield-popup-row"},h("span",{style:{color:"#aaa"}},"Total cost"),h("span",null,fmt(denominator))),
         h("div",{className:"yield-popup-row"},
           h("span",{style:{color:"#fff"}},"= Yield"),
-          h("span",{style:{color:"#00e5a0",fontFamily:"'IBM Plex Mono',monospace"}},
-            type==="Gross (on price)"?fmtPct(gy):type==="True gross"?fmtPct(tg):fmtPct(tn)
-          )
+          h("span",{style:{color:"#00e5a0",fontFamily:"'IBM Plex Mono',monospace"}},fmtPct(yieldVal))
         ),
         h("div",{style:{fontSize:"0.62rem",color:"#777",marginTop:6}},
-          type==="True net"?"Net = true gross x 0.77 (approx 23% vacancy/mgmt/maintenance)":"Annual rent \u00f7 total cost x 100"
+          isGross?"Annual rent \u00f7 purchase price x 100":
+          isTrueGross?"Annual rent \u00f7 (price + SDLT + legal fees) x 100 \u2014 excludes renovation":
+          "Annual rent \u00f7 (price + SDLT + legal fees + renovation) x 100"
         )
       );
     }
@@ -490,9 +511,9 @@
         h("div",{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",borderBottom:"1px solid #eee"}},
           [
             {label:"Est. rent",value:fmt(prop.est_market_rent),sub:"pcm",type:null,col:0},
-            {label:"Gross yield",value:fmtPct(prop.gross_yield_pct),sub:"on price \u24d8",green:prop.gross_yield_pct>=5,type:"Gross (on price)",col:1},
-            {label:"True gross",value:fmtPct(prop.true_gross_yield_pct),sub:"all-in \u24d8",green:prop.true_gross_yield_pct>=4.5,type:"True gross",col:2},
-            {label:"True net",value:fmtPct(prop.true_net_yield_pct),sub:"after costs \u24d8",green:prop.true_net_yield_pct>=3.5,type:"True net",col:3}
+            {label:"Gross yield",value:fmtPct(prop.gross_yield_pct),sub:"on price \u24d8",green:prop.gross_yield_pct>=5.5,type:"Gross (on price)",col:1},
+            {label:"True gross",value:fmtPct(prop.true_gross_yield_pct),sub:"all-in \u24d8",green:prop.true_gross_yield_pct>=5.5,type:"True gross",col:2},
+            {label:"True net",value:fmtPct(prop.true_net_yield_pct),sub:"after costs \u24d8",green:prop.true_net_yield_pct>=4.5,type:"True net",col:3}
           ].map(function(s){
             if(!s.type)return h("div",{key:s.label,className:"stat"},h("div",{style:{fontSize:"0.58rem",textTransform:"uppercase",letterSpacing:"0.08em",color:"#aaa",marginBottom:3}},s.label),h("div",{style:{fontSize:"0.95rem",fontWeight:600,color:"#1a1a2e",fontFamily:"'IBM Plex Mono',monospace"}},s.value),h("div",{style:{fontSize:"0.58rem",color:"#bbb",marginTop:2}},s.sub));
             return h("div",{key:s.label,className:"yield-stat",onClick:function(e){e.stopPropagation();setYieldPopup(yieldPopup===s.type?null:s.type);},style:{padding:"12px 8px",textAlign:"center",borderRight:"1px solid #eee",cursor:"pointer",position:"relative",transition:"background 0.15s",background:yieldPopup===s.type?"#fdf6f8":"transparent"}},
@@ -537,7 +558,7 @@
           h("div",{style:{marginBottom:12}},
             h("div",{className:"stitle"},"Total Cost of Acquisition \u2014 Ltd Co"),
             h("div",{style:{border:"1px solid #eee",borderRadius:8,overflow:"hidden"}},
-              [{label:"Purchase price",val:fmt(prop.price),cost:false},{label:"SDLT (Ltd Co + 3% surcharge)",val:fmt(prop.sdlt),cost:true},{label:"Legal fees",val:fmt(prop.legal_fees),cost:true},{label:"Survey / valuation",val:fmt(prop.survey),cost:true},{label:"Renovation estimate",val:fmt(prop.reno_total),cost:true}].map(function(r){return h("div",{key:r.label,className:"acq-row"},h("span",{style:{color:"#666"}},r.label),h("span",{style:{fontWeight:600,color:r.cost?"#c0392b":"#1a1a2e",fontFamily:"'IBM Plex Mono',monospace"}},r.val));}),
+              [{label:"Purchase price",val:fmt(prop.price),cost:false},{label:"SDLT (Ltd Co + 3% surcharge)",val:fmt(prop.sdlt),cost:true},{label:"Legal fees (Ltd Co, flat)",val:fmt(prop.legal_fees),cost:true},{label:"Renovation estimate",val:fmt(prop.reno_total),cost:true}].map(function(r){return h("div",{key:r.label,className:"acq-row"},h("span",{style:{color:"#666"}},r.label),h("span",{style:{fontWeight:600,color:r.cost?"#c0392b":"#1a1a2e",fontFamily:"'IBM Plex Mono',monospace"}},r.val));}),
               h("div",{style:{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:"#f5eef1",fontWeight:700,fontSize:"0.82rem",borderTop:"2px solid #7c3d52"}},h("span",{style:{color:"#4a0e22"}},"Total all-in cost"),h("span",{style:{color:"#4a0e22",fontFamily:"'IBM Plex Mono',monospace"}},fmt(prop.total_acquisition_cost))),
               prop.est_refinance_value&&h("div",{className:"acq-row",style:{background:"#f0f4ff"}},h("span",{style:{color:"#1565c0"}},"Est. refinance value (post-works)"),h("span",{style:{fontWeight:600,color:"#1565c0",fontFamily:"'IBM Plex Mono',monospace"}},fmt(prop.est_refinance_value))),
               prop.est_refinance_value&&h("div",{className:"acq-row",style:{background:"#f0f4ff"}},h("span",{style:{color:"#1565c0"}},"Est. mortgage (75% LTV)"),h("span",{style:{fontWeight:600,color:"#1565c0",fontFamily:"'IBM Plex Mono',monospace"}},fmt(Math.round(prop.est_refinance_value*0.75)))),
