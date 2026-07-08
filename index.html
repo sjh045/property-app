@@ -100,7 +100,7 @@
     var MAX_ACTIVE = 25;
 
     var fmt = function(n){ return n ? "\u00a3"+Number(n).toLocaleString("en-GB") : "\u2014"; };
-    var fmtPct = function(n){ return n ? Number(n).toFixed(1)+"%" : "\u2014"; };
+    var fmtPct = function(n){ return (n!==null&&n!==undefined&&n!=="") ? Number(n).toFixed(1)+"%" : "\u2014"; };
 
     function sdlt(price){
       if(price<=250000) return Math.round(price*0.03);
@@ -684,7 +684,7 @@
           var props=results[0].data||[],comms=results[1].data||[];
           var order={HIGH:0,MEDIUM:1,LOW:2};
           props.sort(function(a,b){var po=(order[a.priority]||3)-(order[b.priority]||3);return po!==0?po:(b.true_gross_yield_pct||0)-(a.true_gross_yield_pct||0);});
-          setProperties(props);
+          setProperties(props.map(enrich));
           var g={};comms.forEach(function(c){if(!g[c.property_id])g[c.property_id]=[];g[c.property_id].push(c);});
           setComments(g);setLoading(false);
         });
