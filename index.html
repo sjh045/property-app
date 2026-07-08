@@ -368,12 +368,88 @@
     function PipelineView(){
       var ls=useState([]),logs=ls[0],setLogs=ls[1];
       var loading=useState(true),setLoading=loading[1];loading=loading[0];
+      var bfs=useState("idle"),backfillStatus=bfs[0],setBackfillStatus=bfs[1];
+      var bfp=useState(""),backfillProgress=bfp[0],setBackfillProgress=bfp[1];
+      var bfc=useState(0),backfillCount=bfc[0],setBackfillCount=bfc[1];
+      var bft=useState(0),backfillTotal=bft[0],setBackfillTotal=bft[1];
 
       useEffect(function(){
         supabase.from("pipeline_log").select("*").gte("ran_at",new Date(Date.now()-24*60*60*1000).toISOString()).order("ran_at",{ascending:false}).limit(200).then(function(r){
           setLogs(r.data||[]);setLoading(false);
         });
       },[]);
+
+      function runBackfill(){
+        setBackfillStatus("running");setBackfillProgress("Loading properties...");setBackfillCount(0);
+        // Load all active properties that have comps but no traffic lights
+        supabase.from("properties").select("*").eq("is_discarded",false).eq("is_sold",false).then(function(r){
+          var props=(r.data||[]).filter(function(p){
+            return (p.comp_1_address||p.comp_2_address||p.comp_3_address)&&
+              (!p.comp_1_traffic_light&&!p.comp_2_traffic_light&&!p.comp_3_traffic_light);
+          });
+          setBackfillTotal(props.length);
+          if(props.length===0){setBackfillStatus("done");setBackfillProgress("No properties need backfilling — all traffic lights are set.");return;}
+          setBackfillProgress("Found "+props.length+" properties to backfill. Processing...");
+
+          // Process sequentially with a small delay to avoid rate limits
+          function processNext(i){
+            if(i>=props.length){
+              setBackfillStatus("done");
+              setBackfillProgress("Done — backfilled "+props.length+" properties.");
+              return;
+            }
+            var prop=props[i];
+            setBackfillProgress("Processing "+(i+1)+" of "+props.length+": "+prop.address);
+
+            // Ask the Edge Function to re-score comparables only
+            var prompt="You are assessing comparables for a property already in our database. For each comparable below, assign a traffic light based on the Deal Flow Criteria matrix:\n"
+              +"- green: exact same property type AND within 1/2 mile\n"
+              +"- amber: exact same property type AND within 1 mile\n"
+              +"- red: no exact type match or beyond 1 mile\n\n"
+              +"Subject property: "+prop.address+" | Type: "+(prop.type||"unknown")+"\n\n"
+              +"Comparable sales:\n"
+              +"1. "+(prop.comp_1_address||"none")+" - "+(prop.comp_1_price||"")+"\n"
+              +"2. "+(prop.comp_2_address||"none")+" - "+(prop.comp_2_price||"")+"\n"
+              +"3. "+(prop.comp_3_address||"none")+" - "+(prop.comp_3_price||"")+"\n\n"
+              +"Rental comparables:\n"
+              +"1. "+(prop.rental_link_1_label||"none")+"\n"
+              +"2. "+(prop.rental_link_2_label||"none")+"\n"
+              +"3. "+(prop.rental_link_3_label||"none")+"\n\n"
+              +"Return ONLY a JSON object with these exact keys: comp_1_traffic_light, comp_2_traffic_light, comp_3_traffic_light, rental_link_1_traffic_light, rental_link_2_traffic_light, rental_link_3_traffic_light. Values must be \"green\", \"amber\", \"red\", or null only.";
+
+            fetch(SUPA_URL+"/functions/v1/ask-property",{
+              method:"POST",
+              headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPA_KEY},
+              body:JSON.stringify({prompt:prompt})
+            }).then(function(res){return res.json();}).then(function(d){
+              var text=d.result||"";
+              var clean=text.replace(/```json\s*/gi,"").replace(/```\s*/g,"").trim();
+              var start=clean.indexOf("{"),end=clean.lastIndexOf("}");
+              if(start!==-1&&end!==-1){
+                try{
+                  var tl=JSON.parse(clean.slice(start,end+1));
+                  var update={updated_at:new Date().toISOString()};
+                  ["comp_1_traffic_light","comp_2_traffic_light","comp_3_traffic_light",
+                   "rental_link_1_traffic_light","rental_link_2_traffic_light","rental_link_3_traffic_light"].forEach(function(k){
+                    if(tl[k]!==undefined)update[k]=tl[k];
+                  });
+                  supabase.from("properties").update(update).eq("id",prop.id).then(function(){
+                    setBackfillCount(i+1);
+                    setTimeout(function(){processNext(i+1);},600); // small delay between calls
+                  });
+                }catch(e){
+                  setTimeout(function(){processNext(i+1);},600);
+                }
+              } else {
+                setTimeout(function(){processNext(i+1);},600);
+              }
+            }).catch(function(){
+              setTimeout(function(){processNext(i+1);},600);
+            });
+          }
+          processNext(0);
+        });
+      }
 
       var sources=["Rightmove","Zoopla","propertyauctions.io","Savills Auctions","Allsop","Barnard Marcus","Strettons","SDL Auctions","Network Auctions","iamsold","Clive Emson"];
       var totalAdded=logs.reduce(function(s,l){return s+(l.properties_added||0);},0);
@@ -398,6 +474,25 @@
               h("div",{style:{fontFamily:"'IBM Plex Mono',monospace",fontSize:"1.4rem",fontWeight:700,color:s.col}},s.value)
             );
           })
+        ),
+        h("div",{className:"pipeline-card",style:{marginBottom:16}},
+          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}},
+            h("div",null,
+              h("div",{className:"stitle",style:{marginBottom:4}},"Backfill Traffic Lights"),
+              h("div",{style:{fontSize:"0.72rem",color:"#888",lineHeight:1.5}},"Scans all active properties with comparable data but no traffic lights set, and scores them using the Deal Flow Criteria matrix.")
+            ),
+            backfillStatus!=="running"&&h("button",{className:"gold-btn",style:{flexShrink:0,marginLeft:16},onClick:runBackfill},"Run Backfill")
+          ),
+          backfillStatus==="running"&&h("div",null,
+            h("div",{style:{fontSize:"0.78rem",color:"#4a0e22",marginBottom:8}},backfillProgress),
+            backfillTotal>0&&h("div",null,
+              h("div",{style:{height:6,background:"#eee",borderRadius:3,overflow:"hidden",marginBottom:6}},
+                h("div",{style:{height:"100%",background:"#7c3d52",borderRadius:3,width:(backfillTotal>0?(backfillCount/backfillTotal*100):0)+"%",transition:"width 0.4s"}})
+              ),
+              h("div",{style:{fontSize:"0.7rem",color:"#888"}},backfillCount+" of "+backfillTotal+" done")
+            )
+          ),
+          backfillStatus==="done"&&h("div",{style:{fontSize:"0.78rem",color:"#2e7d32",fontWeight:600}},"\u2713 "+backfillProgress)
         ),
         h("div",{className:"pipeline-card",style:{marginBottom:16}},
           h("div",{className:"stitle",style:{marginBottom:4}},"Sources monitored"),
@@ -592,14 +687,15 @@
               h("div",{style:{fontSize:"0.62rem",color:"#aaa",marginBottom:6}},
                 h("span",{style:{color:"#2e7d32",fontWeight:700}},"● "),h("span",null,"Same type <½mi  "),
                 h("span",{style:{color:"#b45309",fontWeight:700}},"● "),h("span",null,"Same type <1mi  "),
-                h("span",{style:{color:"#c0392b",fontWeight:700}},"● "),h("span",null,"No exact match")
+                h("span",{style:{color:"#c0392b",fontWeight:700}},"● "),h("span",null,"No exact match  "),
+                h("span",{style:{color:"#ccc",fontWeight:700}},"● "),h("span",null,"No data")
               ),
               [[prop.comp_1_address,prop.comp_1_price,prop.comp_1_date,prop.comp_1_traffic_light],
                [prop.comp_2_address,prop.comp_2_price,prop.comp_2_date,prop.comp_2_traffic_light],
                [prop.comp_3_address,prop.comp_3_price,prop.comp_3_date,prop.comp_3_traffic_light]
               ].filter(function(r){return r[0];}).map(function(r){
                 var tl=r[3];
-                var dot=tl==="green"?"#2e7d32":tl==="amber"?"#b45309":"#c0392b";
+                var dot=tl==="green"?"#2e7d32":tl==="amber"?"#b45309":tl==="red"?"#c0392b":"#cccccc";
                 return h("div",{key:r[0],style:{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:"0.72rem",padding:"4px 0",borderBottom:"1px solid #eee"}},
                   h("span",{style:{color:"#777",flex:1}},
                     h("span",{style:{color:dot,fontWeight:700,marginRight:5}},"\u25cf"),
@@ -613,14 +709,15 @@
               h("div",{style:{fontSize:"0.62rem",color:"#aaa",marginBottom:6}},
                 h("span",{style:{color:"#2e7d32",fontWeight:700}},"● "),h("span",null,"Same type <½mi  "),
                 h("span",{style:{color:"#b45309",fontWeight:700}},"● "),h("span",null,"Same type <1mi  "),
-                h("span",{style:{color:"#c0392b",fontWeight:700}},"● "),h("span",null,"No exact match")
+                h("span",{style:{color:"#c0392b",fontWeight:700}},"● "),h("span",null,"No exact match  "),
+                h("span",{style:{color:"#ccc",fontWeight:700}},"● "),h("span",null,"No data")
               ),
               [[prop.rental_link_1_label,prop.rental_link_1_url,prop.rental_link_1_traffic_light],
                [prop.rental_link_2_label,prop.rental_link_2_url,prop.rental_link_2_traffic_light],
                [prop.rental_link_3_label,prop.rental_link_3_url,prop.rental_link_3_traffic_light]
               ].filter(function(r){return r[0];}).map(function(r){
                 var tl=r[2];
-                var dot=tl==="green"?"#2e7d32":tl==="amber"?"#b45309":"#c0392b";
+                var dot=tl==="green"?"#2e7d32":tl==="amber"?"#b45309":tl==="red"?"#c0392b":"#cccccc";
                 return h("a",{key:r[0],className:"rental-link",href:r[1],target:"_blank",rel:"noreferrer",style:{display:"flex",alignItems:"center",gap:6}},
                   h("span",{style:{color:dot,fontWeight:700,fontSize:"0.9rem"}},"\u25cf"),
                   "\u2197 "+r[0]
