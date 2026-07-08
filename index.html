@@ -528,9 +528,9 @@
         h("div",{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",borderBottom:"1px solid #eee"}},
           [
             {label:"Est. rent",value:fmt(prop.est_market_rent),sub:"pcm",type:null,col:0},
-            {label:"Gross yield",value:fmtPct(prop.gross_yield_pct),sub:"on price \u24d8",green:prop.gross_yield_pct>=5.5,type:"Gross (on price)",col:1},
-            {label:"True gross",value:fmtPct(prop.true_gross_yield_pct),sub:"all-in \u24d8",green:prop.true_gross_yield_pct>=5.5,type:"True gross",col:2},
-            {label:"True net",value:fmtPct(prop.true_net_yield_pct),sub:"after costs \u24d8",green:prop.true_net_yield_pct>=4.5,type:"True net",col:3}
+            {label:"Gross yield",value:fmtPct(prop.gross_yield_pct||(prop.est_market_rent>0&&prop.price>0?parseFloat((prop.est_market_rent*12/prop.price*100).toFixed(2)):null)),sub:"on price \u24d8",green:(prop.gross_yield_pct||(prop.est_market_rent>0&&prop.price>0?prop.est_market_rent*12/prop.price*100:0))>=5.5,type:"Gross (on price)",col:1},
+            {label:"True gross",value:fmtPct(prop.true_gross_yield_pct||(prop.est_market_rent>0&&prop.price>0?parseFloat((prop.est_market_rent*12/(prop.price+(prop.sdlt||0)+(prop.legal_fees||3000))*100).toFixed(2)):null)),sub:"all-in \u24d8",green:(prop.true_gross_yield_pct||0)>=5.5,type:"True gross",col:2},
+            {label:"True net",value:fmtPct(prop.true_net_yield_pct||(prop.est_market_rent>0&&prop.price>0?parseFloat((prop.est_market_rent*12/((prop.total_acquisition_cost||prop.price))*100).toFixed(2)):null)),sub:"after costs \u24d8",green:(prop.true_net_yield_pct||0)>=4.5,type:"True net",col:3}
           ].map(function(s){
             if(!s.type)return h("div",{key:s.label,className:"stat"},h("div",{style:{fontSize:"0.58rem",textTransform:"uppercase",letterSpacing:"0.08em",color:"#aaa",marginBottom:3}},s.label),h("div",{style:{fontSize:"0.95rem",fontWeight:600,color:"#1a1a2e",fontFamily:"'IBM Plex Mono',monospace"}},s.value),h("div",{style:{fontSize:"0.58rem",color:"#bbb",marginTop:2}},s.sub));
             return h("div",{key:s.label,className:"yield-stat",onClick:function(e){e.stopPropagation();setYieldPopup(yieldPopup===s.type?null:s.type);},style:{padding:"12px 8px",textAlign:"center",borderRight:"1px solid #eee",cursor:"pointer",position:"relative",transition:"background 0.15s",background:yieldPopup===s.type?"#fdf6f8":"transparent"}},
