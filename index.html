@@ -370,7 +370,7 @@
       var loading=useState(true),setLoading=loading[1];loading=loading[0];
 
       useEffect(function(){
-        supabase.from("pipeline_log").select("*").gte("ran_at",new Date(Date.now()-7*24*60*60*1000).toISOString()).order("ran_at",{ascending:false}).limit(200).then(function(r){
+        supabase.from("pipeline_log").select("*").gte("ran_at",new Date(Date.now()-24*60*60*1000).toISOString()).order("ran_at",{ascending:false}).limit(200).then(function(r){
           setLogs(r.data||[]);setLoading(false);
         });
       },[]);
@@ -389,9 +389,9 @@
         h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:16,marginBottom:24}},
           [
             {label:"Last scan",value:lastRun?new Date(lastRun).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"Never",col:"#4a0e22"},
-            {label:"Emails processed",value:totalEmails,col:"#1565c0"},
-            {label:"Properties analysed",value:totalAnalysed,col:"#b45309"},
-            {label:"Properties added",value:totalAdded,col:"#2e7d32"},
+            {label:"Emails processed (24h)",value:totalEmails,col:"#1565c0"},
+            {label:"Properties analysed (24h)",value:totalAnalysed,col:"#b45309"},
+            {label:"Properties added (24h)",value:totalAdded,col:"#2e7d32"},
           ].map(function(s){
             return h("div",{key:s.label,className:"pipeline-card",style:{textAlign:"center"}},
               h("div",{style:{fontSize:"0.62rem",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:"#999",marginBottom:8}},s.label),
@@ -588,8 +588,45 @@
             h("div",{style:{gridColumn:"1/-1"}},h("div",{className:"stitle",style:{color:"#7c3d52"}},"Strategy"),h("div",{style:{background:"#fafafa",border:"1px solid #eee",padding:"12px 14px",borderRadius:8,fontSize:"0.78rem",lineHeight:1.6,color:"#333"}},prop.strategy||"\u2014")),
             h("div",null,h("div",{className:"stitle"},"Development potential"),h("div",{style:{fontSize:"0.72rem",color:"#555",lineHeight:1.6}},prop.development_potential||"\u2014")),
             h("div",null,h("div",{className:"stitle"},"Issues & red flags"),h("div",{className:"flag-red"},prop.issues_red_flags||"\u2014")),
-            h("div",null,h("div",{className:"stitle"},"Comparable sales"),[[prop.comp_1_address,prop.comp_1_price,prop.comp_1_date],[prop.comp_2_address,prop.comp_2_price,prop.comp_2_date],[prop.comp_3_address,prop.comp_3_price,prop.comp_3_date]].filter(function(r){return r[0];}).map(function(r){return h("div",{key:r[0],style:{display:"flex",justifyContent:"space-between",fontSize:"0.72rem",padding:"4px 0",borderBottom:"1px solid #eee"}},h("span",{style:{color:"#777"}},r[0]+(r[2]?" ("+r[2]+")":"")),h("span",{style:{fontWeight:600,color:"#1a1a2e",fontFamily:"'IBM Plex Mono',monospace"}},fmt(r[1])));})),
-            h("div",null,h("div",{className:"stitle"},"Similar rentals"),[[prop.rental_link_1_label,prop.rental_link_1_url],[prop.rental_link_2_label,prop.rental_link_2_url],[prop.rental_link_3_label,prop.rental_link_3_url]].filter(function(r){return r[0];}).map(function(r){return h("a",{key:r[0],className:"rental-link",href:r[1],target:"_blank",rel:"noreferrer"},"\u2197 "+r[0]);}))
+            h("div",null,h("div",{className:"stitle"},"Comparable sales"),
+              h("div",{style:{fontSize:"0.62rem",color:"#aaa",marginBottom:6}},
+                h("span",{style:{color:"#2e7d32",fontWeight:700}},"● "),h("span",null,"Same type <½mi  "),
+                h("span",{style:{color:"#b45309",fontWeight:700}},"● "),h("span",null,"Same type <1mi  "),
+                h("span",{style:{color:"#c0392b",fontWeight:700}},"● "),h("span",null,"No exact match")
+              ),
+              [[prop.comp_1_address,prop.comp_1_price,prop.comp_1_date,prop.comp_1_traffic_light],
+               [prop.comp_2_address,prop.comp_2_price,prop.comp_2_date,prop.comp_2_traffic_light],
+               [prop.comp_3_address,prop.comp_3_price,prop.comp_3_date,prop.comp_3_traffic_light]
+              ].filter(function(r){return r[0];}).map(function(r){
+                var tl=r[3];
+                var dot=tl==="green"?"#2e7d32":tl==="amber"?"#b45309":"#c0392b";
+                return h("div",{key:r[0],style:{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:"0.72rem",padding:"4px 0",borderBottom:"1px solid #eee"}},
+                  h("span",{style:{color:"#777",flex:1}},
+                    h("span",{style:{color:dot,fontWeight:700,marginRight:5}},"\u25cf"),
+                    r[0]+(r[2]?" ("+r[2]+")":"")
+                  ),
+                  h("span",{style:{fontWeight:600,color:"#1a1a2e",fontFamily:"'IBM Plex Mono',monospace"}},fmt(r[1]))
+                );
+              })
+            ),
+            h("div",null,h("div",{className:"stitle"},"Similar rentals"),
+              h("div",{style:{fontSize:"0.62rem",color:"#aaa",marginBottom:6}},
+                h("span",{style:{color:"#2e7d32",fontWeight:700}},"● "),h("span",null,"Same type <½mi  "),
+                h("span",{style:{color:"#b45309",fontWeight:700}},"● "),h("span",null,"Same type <1mi  "),
+                h("span",{style:{color:"#c0392b",fontWeight:700}},"● "),h("span",null,"No exact match")
+              ),
+              [[prop.rental_link_1_label,prop.rental_link_1_url,prop.rental_link_1_traffic_light],
+               [prop.rental_link_2_label,prop.rental_link_2_url,prop.rental_link_2_traffic_light],
+               [prop.rental_link_3_label,prop.rental_link_3_url,prop.rental_link_3_traffic_light]
+              ].filter(function(r){return r[0];}).map(function(r){
+                var tl=r[2];
+                var dot=tl==="green"?"#2e7d32":tl==="amber"?"#b45309":"#c0392b";
+                return h("a",{key:r[0],className:"rental-link",href:r[1],target:"_blank",rel:"noreferrer",style:{display:"flex",alignItems:"center",gap:6}},
+                  h("span",{style:{color:dot,fontWeight:700,fontSize:"0.9rem"}},"\u25cf"),
+                  "\u2197 "+r[0]
+                );
+              })
+            )
           )
         ),
         h("div",{style:{borderTop:"1px solid #eee",padding:"12px 16px",background:"#fafafa"}},
