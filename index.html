@@ -22,8 +22,8 @@
     .icon-btn.sold-btn:hover{border-color:#2e7d32;background:#f0f7f0;color:#2e7d32;}
     .filter-btn{padding:5px 14px;border-radius:20px;border:1px solid #ddd;background:#fff;font-size:0.72rem;font-family:'Inter',sans-serif;cursor:pointer;font-weight:500;color:#666;transition:all 0.15s;}
     .filter-btn:hover{background:#5c1a2e;color:#fff;border-color:#5c1a2e;font-weight:600;}.filter-btn.on{background:#5c1a2e;color:#fff;border-color:#5c1a2e;font-weight:600;}.filter-btn.on-high{background:#2e7d32;color:#fff;border-color:#2e7d32;font-weight:600;}.filter-btn.on-medium{background:#b45309;color:#fff;border-color:#b45309;font-weight:600;}.filter-btn.on-low{background:#c0392b;color:#fff;border-color:#c0392b;font-weight:600;}
-    .nav-btn{padding:8px 20px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:0.78rem;font-family:'Inter',sans-serif;cursor:pointer;font-weight:500;color:#666;transition:all 0.15s;}
-    .nav-btn.on{background:#4a0e22;color:#fff;border-color:#4a0e22;font-weight:600;}
+    .nav-btn{padding:5px 14px;border-radius:20px;border:1px solid rgba(255,255,255,0.4);background:transparent;font-size:0.72rem;font-family:'Inter',sans-serif;cursor:pointer;font-weight:500;color:rgba(255,255,255,0.8);transition:all 0.15s;}
+    .nav-btn.on{background:rgba(255,255,255,0.2);color:#fff;border-color:rgba(255,255,255,0.8);font-weight:700;}
     .stat{padding:12px 8px;text-align:center;border-right:1px solid #eee;}
     .stat:last-child{border-right:none;}
     .yield-stat{padding:12px 8px;text-align:center;border-right:1px solid #eee;cursor:pointer;position:relative;transition:background 0.15s;}
@@ -141,7 +141,7 @@
       var maxBidTotal=maxBid?maxBidTrueGrossBase+reno:null;
       var maxBidYield=(maxBid&&rent>0&&maxBidTrueGrossBase>0)?parseFloat((annual/maxBidTrueGrossBase*100).toFixed(2)):null;
       var dq=(!p.address||p.address.length<5||p.address.indexOf("Unknown")!==-1||!price||!rent)?"incomplete":"complete";
-      return Object.assign({},p,{sdlt:s,legal_fees:legal,gross_yield_pct:gy,total_acquisition_cost:total,true_gross_yield_pct:tg,true_net_yield_pct:tn,est_refinance_value:refVal,equity_created:valueCreated,value_created:valueCreated,capital_remaining:Math.round(total-mort),auction_guide_low:p.auction_guide_low||(guide?Math.round(price*1.15):null),auction_guide_high:p.auction_guide_high||(guide?Math.round(price*1.30):null),auction_max_bid:maxBid,auction_max_bid_yield:maxBidYield,auction_max_bid_total:maxBidTotal,data_quality:dq,is_favourite:false,is_discarded:false,is_sold:false});
+      return Object.assign({},p,{sdlt:s,legal_fees:legal,gross_yield_pct:gy,total_acquisition_cost:total,true_gross_yield_pct:tg,true_net_yield_pct:tn,est_refinance_value:refVal,equity_created:valueCreated,value_created:valueCreated,capital_remaining:Math.round(total-mort),auction_guide_low:p.auction_guide_low||(guide?Math.round(price*1.15):null),auction_guide_high:p.auction_guide_high||(guide?Math.round(price*1.30):null),auction_max_bid:maxBid,auction_max_bid_yield:maxBidYield,auction_max_bid_total:maxBidTotal,data_quality:dq});
     }
 
     function callEdge(chunkText,maxResults,stackContext){
@@ -607,7 +607,8 @@
             h("div",{style:{display:"flex",gap:5,flexShrink:0}},
               h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("button",{className:"icon-btn"+(prop.is_favourite?" fav-on":""),onClick:onFav},prop.is_favourite?"\u2665":"\u2661"),h("span",{style:{fontSize:"0.55rem",color:prop.is_favourite?"#7c3d52":"#bbb",textTransform:"uppercase",letterSpacing:"0.05em"}},prop.is_favourite?"Saved":"Fav")),
               h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("button",{className:"icon-btn del",onClick:onDiscard},prop.is_discarded?"\u21a9":"\ud83d\uddd1"),h("span",{style:{fontSize:"0.55rem",color:"#bbb",textTransform:"uppercase",letterSpacing:"0.05em"}},prop.is_discarded?"Restore":"Discard")),
-              !prop.is_sold&&h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("button",{className:"icon-btn sold-btn",onClick:handleSold,title:"Mark as sold"},"\u2713"),h("span",{style:{fontSize:"0.55rem",color:"#bbb",textTransform:"uppercase",letterSpacing:"0.05em"}},"Sold"))
+              !prop.is_sold&&h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("button",{className:"icon-btn sold-btn",onClick:handleSold,title:"Mark as sold"},"\u2713"),h("span",{style:{fontSize:"0.55rem",color:"#bbb",textTransform:"uppercase",letterSpacing:"0.05em"}},"Sold")),
+            prop.created_at&&h("div",{style:{fontSize:"0.58rem",color:"#bbb",textAlign:"right",marginTop:4,letterSpacing:"0.02em"}},"Added: "+new Date(prop.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}))
             )
           ),
           h("div",{style:{display:"flex",alignItems:"baseline",gap:8,marginTop:4,flexWrap:"wrap"}},
@@ -733,9 +734,23 @@
               var isAI=c.action==="ai_response";
               var isSys=c.action==="system_update";
               return h("div",{key:c.id,className:"comment-bubble"+(isAI?" ai-response":"")+(isSys?" system-update":"")},
-                h("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:4}},
-                  h("span",{style:{fontSize:"0.68rem",fontWeight:700,color:isAI?"#2e7d32":isSys?"#1565c0":"#1a1a2e"}},isAI?"\u{1F916} Claude":isSys?"\u{1F527} Updated":c.user_name),
-                  h("span",{style:{fontSize:"0.6rem",color:"#bbb"}},new Date(c.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}))
+                h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}},
+                  h("div",null,
+                    h("span",{style:{fontSize:"0.68rem",fontWeight:700,color:isAI?"#2e7d32":isSys?"#1565c0":"#1a1a2e"}},isAI?"\u{1F916} Claude":isSys?"\u{1F527} Updated":c.user_name),
+                    h("span",{style:{fontSize:"0.6rem",color:"#bbb",marginLeft:8}},new Date(c.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}))
+                  ),
+                  !isAI&&h("button",{onClick:function(){
+                    var name=window.prompt("Enter your name to delete this comment:");
+                    if(!name)return;
+                    var author=(c.user_name||"").toLowerCase().trim();
+                    var entered=name.toLowerCase().trim();
+                    var isAdmin=entered==="sunil";
+                    var isOwn=entered===author;
+                    if(!isAdmin&&!isOwn){window.alert("You can only delete your own comments. Sunil can delete any comment.");return;}
+                    supabase.from("property_comments").delete().eq("id",c.id).then(function(r){
+                      if(!r.error)setComments(function(prev){var n=Object.assign({},prev);n[prop.id]=(n[prop.id]||[]).filter(function(x){return x.id!==c.id;});return n;});
+                    });
+                  },style:{background:"none",border:"none",cursor:"pointer",fontSize:"0.65rem",color:"#ccc",padding:"0 2px",lineHeight:1},title:"Delete comment"},"×")
                 ),
                 h("div",{style:{fontSize:"0.75rem",color:isAI?"#2e7d32":isSys?"#1565c0":"#555",lineHeight:1.5}},c.comment)
               );
@@ -744,8 +759,8 @@
           h("textarea",{value:note,onChange:function(e){setNote(e.target.value);},placeholder:"Comment, question (end with ?), or command e.g. 'reno cost is \u00a310k' or paste a listing url",style:{width:"100%",minHeight:48,border:"1px solid #ddd",borderRadius:8,padding:"8px 10px",fontSize:"0.75rem",color:"#1a1a2e",background:"#fff",marginBottom:8,resize:"vertical",fontFamily:"'Inter',sans-serif"}}),
           h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}},
             h("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},buildLinks()),
-            h("button",{className:"submit-btn",onClick:handleComment,disabled:aiLoading},
-              aiLoading?"Claude thinking...":detectCommand(note)?"\u{1F527} Apply Update":note.trim().endsWith("?")?"\u{1F916} Ask Claude":"\ud83d\udcbe Save"
+            h("button",{className:"submit-btn",onClick:handleComment,disabled:aiLoading||(!note.trim())},
+              aiLoading?"Claude thinking...":detectCommand(note)?"\u{1F527} Apply Update":note.trim().endsWith("?")?"\u{1F916} Ask Claude":"Post"
             )
           )
         )
@@ -832,7 +847,13 @@
 
       function submitComment(propId,text,clearFn,isQuestion,prop,doneFn){
         if(!text.trim())return;
-        var user=userName||"Team";
+        var user=userName;
+        if(!user||user.trim()===""){
+          var prompted=window.prompt("Please enter your name to add a comment:");
+          if(!prompted||!prompted.trim())return;
+          setUserName(prompted.trim());
+          user=prompted.trim();
+        }
         supabase.from("property_comments").insert({property_id:propId,user_name:user,action:"comment",comment:text.trim()}).select().single().then(function(r){
           if(r.data){
             setComments(function(prev){var n=Object.assign({},prev);n[propId]=(n[propId]||[]).concat(r.data);return n;});
@@ -874,21 +895,16 @@
 
       return h("div",{style:{minHeight:"100vh",background:"#f4f4f5"}},
         showAdd&&h(AddPropertyModal,{onClose:function(){setShowAdd(false);},onSaved:function(){loadData();sync("\u2713 Property added");},userName:userName,currentProps:properties}),
-        h("div",{style:{background:"#4a0e22",padding:"18px 32px",borderBottom:"3px solid #3a0a1a",position:"sticky",top:0,zIndex:100,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}},
-          h("div",{style:{display:"flex",alignItems:"center",gap:20}},
-            h("div",null,
-              h("div",{style:{fontFamily:"'IBM Plex Mono',monospace",fontSize:"0.95rem",color:"#fff",letterSpacing:"0.08em",fontWeight:700}},"PROPERTY DEAL FLOW"),
-              h("div",{style:{fontSize:"0.65rem",color:"rgba(255,255,255,0.6)",marginTop:3}},"HA8 6TQ \u00b7 \u00a31m budget \u00b7 "+actv+"/"+MAX_ACTIVE+" active"+(incomplete>0?" \u00b7 \u26a0 "+incomplete+" incomplete":""))
-            ),
-            h("div",{style:{display:"flex",gap:8}},
-              h("button",{className:"nav-btn"+(view==="properties"?" on":""),onClick:function(){setView("properties");}},"Properties"),
-              h("button",{className:"nav-btn"+(view==="pipeline"?" on":""),onClick:function(){setView("pipeline");}},"Pipeline Status")
-            )
+        h("div",{style:{background:"#4a0e22",padding:"10px 20px",borderBottom:"3px solid #3a0a1a",position:"sticky",top:0,zIndex:100,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}},
+          h("div",{style:{fontFamily:"'IBM Plex Mono',monospace",fontSize:"0.82rem",color:"#fff",letterSpacing:"0.06em",fontWeight:700,flexShrink:0}},"PROPERTY DEAL FLOW"),
+          h("div",{style:{display:"flex",gap:6,alignItems:"center"}},
+            h("button",{className:"nav-btn"+(view==="properties"?" on":""),onClick:function(){setView("properties");}},"Properties"),
+            h("button",{className:"nav-btn"+(view==="pipeline"?" on":""),onClick:function(){setView("pipeline");}},"Pipeline Status"),
+            h("button",{className:"nav-btn",onClick:function(){setShowAdd(true);},style:{background:"#fff",color:"#4a0e22",border:"none",fontWeight:700}},"+  Add")
           ),
-          h("div",{style:{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}},
-            syncMsg&&h("span",{style:{fontSize:"0.7rem",color:"#f9c6d0",fontFamily:"'IBM Plex Mono',monospace"}},syncMsg),
-            h("input",{value:userName,onChange:function(e){setUserName(e.target.value);},placeholder:"your name",style:{fontSize:"0.72rem",fontFamily:"'Inter',sans-serif",border:"1px solid rgba(255,255,255,0.3)",borderRadius:20,padding:"5px 14px",color:"#fff",background:"rgba(255,255,255,0.1)",width:130}}),
-            view==="properties"&&h("button",{onClick:function(){setShowAdd(true);},style:{background:"#fff",color:"#4a0e22",border:"none",borderRadius:6,padding:"8px 18px",fontSize:"0.78rem",fontFamily:"'Inter',sans-serif",cursor:"pointer",fontWeight:700}},"+  Add")
+          h("div",{style:{display:"flex",alignItems:"center",gap:8}},
+            syncMsg?h("span",{style:{fontSize:"0.68rem",color:"#f9c6d0",fontFamily:"'IBM Plex Mono',monospace"}},syncMsg):null,
+            h("div",{style:{fontSize:"0.65rem",color:"rgba(255,255,255,0.55)"}},"HA8 6TQ \u00b7 "+actv+"/"+MAX_ACTIVE+(incomplete>0?" \u00b7 \u26a0 "+incomplete:""))
           )
         ),
         view==="properties"&&h("div",{style:{background:"#fff",borderBottom:"1px solid #e2e2e8",padding:"8px 28px",display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}},
