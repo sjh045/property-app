@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -606,9 +607,9 @@
             ),
             h("div",{style:{display:"flex",gap:5,flexShrink:0}},
               h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("button",{className:"icon-btn"+(prop.is_favourite?" fav-on":""),onClick:onFav},prop.is_favourite?"\u2665":"\u2661"),h("span",{style:{fontSize:"0.55rem",color:prop.is_favourite?"#7c3d52":"#bbb",textTransform:"uppercase",letterSpacing:"0.05em"}},prop.is_favourite?"Saved":"Fav")),
-              h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("button",{className:"icon-btn del",onClick:onDiscard},prop.is_discarded?"\u21a9":"\ud83d\uddd1"),h("span",{style:{fontSize:"0.55rem",color:"#bbb",textTransform:"uppercase",letterSpacing:"0.05em"}},prop.is_discarded?"Restore":"Discard")),
-              !prop.is_sold&&h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("button",{className:"icon-btn sold-btn",onClick:handleSold,title:"Mark as sold"},"\u2713"),h("span",{style:{fontSize:"0.55rem",color:"#bbb",textTransform:"uppercase",letterSpacing:"0.05em"}},"Sold")),
-            prop.created_at&&h("div",{style:{fontSize:"0.58rem",color:"#bbb",textAlign:"right",marginTop:4,letterSpacing:"0.02em"}},"Added: "+new Date(prop.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}))
+              h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("button",{className:"icon-btn del",onClick:onDiscard},prop.is_discarded?"\u21a9":"\ud83d\uddd1"),h("span",{style:{fontSize:"0.55rem",color:"#666",textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600}},prop.is_discarded?"Restore":"Discard")),
+              !prop.is_sold&&h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("button",{className:"icon-btn sold-btn",onClick:handleSold,title:"Mark as sold"},"\u2713"),h("span",{style:{fontSize:"0.55rem",color:"#666",textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600}},"Sold")),
+            prop.created_at&&h("div",{style:{fontSize:"0.6rem",color:"#666",textAlign:"right",marginTop:6,letterSpacing:"0.02em",fontWeight:500}},"Added: "+new Date(prop.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}))
             )
           ),
           h("div",{style:{display:"flex",alignItems:"baseline",gap:8,marginTop:4,flexWrap:"wrap"}},
@@ -628,11 +629,11 @@
             {label:"True gross",value:fmtPct(prop.true_gross_yield_pct||(prop.est_market_rent>0&&prop.price>0?parseFloat((prop.est_market_rent*12/(prop.price+(prop.sdlt||0)+(prop.legal_fees||3000))*100).toFixed(2)):null)),sub:"all-in \u24d8",green:(prop.true_gross_yield_pct||0)>=5.5,type:"True gross",col:2},
             {label:"True net",value:fmtPct(prop.true_net_yield_pct||(prop.est_market_rent>0&&prop.price>0?parseFloat((prop.est_market_rent*12/((prop.total_acquisition_cost||prop.price))*100).toFixed(2)):null)),sub:"after costs \u24d8",green:(prop.true_net_yield_pct||0)>=4.5,type:"True net",col:3}
           ].map(function(s){
-            if(!s.type)return h("div",{key:s.label,className:"stat"},h("div",{style:{fontSize:"0.58rem",textTransform:"uppercase",letterSpacing:"0.08em",color:"#aaa",marginBottom:3}},s.label),h("div",{style:{fontSize:"0.95rem",fontWeight:600,color:"#1a1a2e",fontFamily:"'IBM Plex Mono',monospace"}},s.value),h("div",{style:{fontSize:"0.58rem",color:"#bbb",marginTop:2}},s.sub));
+            if(!s.type)return h("div",{key:s.label,className:"stat"},h("div",{style:{fontSize:"0.58rem",textTransform:"uppercase",letterSpacing:"0.08em",color:"#666",marginBottom:3}},s.label),h("div",{style:{fontSize:"0.95rem",fontWeight:600,color:"#1a1a2e",fontFamily:"'IBM Plex Mono',monospace"}},s.value),h("div",{style:{fontSize:"0.58rem",color:"#777",marginTop:2}},s.sub));
             return h("div",{key:s.label,className:"yield-stat",onClick:function(e){e.stopPropagation();setYieldPopup(yieldPopup===s.type?null:s.type);},style:{padding:"12px 8px",textAlign:"center",borderRight:"1px solid #eee",cursor:"pointer",position:"relative",transition:"background 0.15s",background:yieldPopup===s.type?"#fdf6f8":"transparent"}},
-              h("div",{style:{fontSize:"0.58rem",textTransform:"uppercase",letterSpacing:"0.08em",color:"#aaa",marginBottom:3}},s.label),
+              h("div",{style:{fontSize:"0.58rem",textTransform:"uppercase",letterSpacing:"0.08em",color:"#666",marginBottom:3}},s.label),
               h("div",{style:{fontSize:"0.95rem",fontWeight:600,color:s.green?"#2e7d32":"#1a1a2e",fontFamily:"'IBM Plex Mono',monospace"}},s.value),
-              h("div",{style:{fontSize:"0.58rem",color:"#bbb",marginTop:2}},s.sub),
+              h("div",{style:{fontSize:"0.58rem",color:"#777",marginTop:2}},s.sub),
               yieldPopup===s.type&&h(YieldPopup,{prop:prop,type:s.type,col:s.col})
             );
           })
@@ -689,7 +690,7 @@
                 h("span",{style:{color:"#2e7d32",fontWeight:700}},"● "),h("span",null,"Same type <½mi  "),
                 h("span",{style:{color:"#b45309",fontWeight:700}},"● "),h("span",null,"Same type <1mi  "),
                 h("span",{style:{color:"#c0392b",fontWeight:700}},"● "),h("span",null,"No exact match  "),
-                h("span",{style:{color:"#ccc",fontWeight:700}},"● "),h("span",null,"No data")
+                h("span",{style:{color:"#aaa",fontWeight:700}},"● "),h("span",null,"No data")
               ),
               [[prop.comp_1_address,prop.comp_1_price,prop.comp_1_date,prop.comp_1_traffic_light],
                [prop.comp_2_address,prop.comp_2_price,prop.comp_2_date,prop.comp_2_traffic_light],
@@ -711,7 +712,7 @@
                 h("span",{style:{color:"#2e7d32",fontWeight:700}},"● "),h("span",null,"Same type <½mi  "),
                 h("span",{style:{color:"#b45309",fontWeight:700}},"● "),h("span",null,"Same type <1mi  "),
                 h("span",{style:{color:"#c0392b",fontWeight:700}},"● "),h("span",null,"No exact match  "),
-                h("span",{style:{color:"#ccc",fontWeight:700}},"● "),h("span",null,"No data")
+                h("span",{style:{color:"#aaa",fontWeight:700}},"● "),h("span",null,"No data")
               ),
               [[prop.rental_link_1_label,prop.rental_link_1_url,prop.rental_link_1_traffic_light],
                [prop.rental_link_2_label,prop.rental_link_2_url,prop.rental_link_2_traffic_light],
@@ -737,7 +738,7 @@
                 h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}},
                   h("div",null,
                     h("span",{style:{fontSize:"0.68rem",fontWeight:700,color:isAI?"#2e7d32":isSys?"#1565c0":"#1a1a2e"}},isAI?"\u{1F916} Claude":isSys?"\u{1F527} Updated":c.user_name),
-                    h("span",{style:{fontSize:"0.6rem",color:"#bbb",marginLeft:8}},new Date(c.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}))
+                    h("span",{style:{fontSize:"0.6rem",color:"#777",marginLeft:8}},new Date(c.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}))
                   ),
                   !isAI&&h("button",{onClick:function(){
                     var name=window.prompt("Enter your name to delete this comment:");
@@ -750,7 +751,7 @@
                     supabase.from("property_comments").delete().eq("id",c.id).then(function(r){
                       if(!r.error)setComments(function(prev){var n=Object.assign({},prev);n[prop.id]=(n[prop.id]||[]).filter(function(x){return x.id!==c.id;});return n;});
                     });
-                  },style:{background:"none",border:"none",cursor:"pointer",fontSize:"0.65rem",color:"#ccc",padding:"0 2px",lineHeight:1},title:"Delete comment"},"×")
+                  },style:{background:"#fdf0f0",border:"1px solid #f5c6cb",borderRadius:4,cursor:"pointer",fontSize:"0.65rem",color:"#c0392b",padding:"2px 6px",lineHeight:1.4,fontWeight:700},title:"Delete comment"},"Delete")
                 ),
                 h("div",{style:{fontSize:"0.75rem",color:isAI?"#2e7d32":isSys?"#1565c0":"#555",lineHeight:1.5}},c.comment)
               );
