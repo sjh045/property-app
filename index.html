@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -549,7 +550,7 @@
     // ── PROPERTY CARD ─────────────────────────────────────
     function PropertyCard(props){
       var prop=props.prop,comments=props.comments,expanded=props.expanded;
-      var onExpand=props.onExpand,onFav=props.onFav,onDiscard=props.onDiscard,onSold=props.onSold,onComment=props.onComment,onUpdate=props.onUpdate,lastVisit=props.lastVisit||new Date(0).toISOString();
+      var onExpand=props.onExpand,onFav=props.onFav,onDiscard=props.onDiscard,onSold=props.onSold,onComment=props.onComment,onUpdate=props.onUpdate,onDeleteComment=props.onDeleteComment,lastVisit=props.lastVisit||new Date(0).toISOString();
       var ns=useState(""),note=ns[0],setNote=ns[1];
       var ais=useState(false),aiLoading=ais[0],setAiLoading=ais[1];
       var yps=useState(null),yieldPopup=yps[0],setYieldPopup=yps[1];
@@ -607,7 +608,7 @@
               )
             ),
             h("div",{style:{display:"flex",gap:5,flexShrink:0}},
-              h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("button",{className:"icon-btn"+(prop.is_favourite?" fav-on":""),onClick:onFav},prop.is_favourite?"\u2665":"\u2661"),h("span",{style:{fontSize:"0.55rem",color:prop.is_favourite?"#7c3d52":"#bbb",textTransform:"uppercase",letterSpacing:"0.05em"}},prop.is_favourite?"Saved":"Fav")),
+              h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("button",{className:"icon-btn"+(prop.is_favourite?" fav-on":""),onClick:onFav},prop.is_favourite?"\u2665":"\u2661"),h("span",{style:{fontSize:"0.55rem",color:prop.is_favourite?"#7c3d52":"#666",textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600}},prop.is_favourite?"Saved":"Fav")),
               h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("button",{className:"icon-btn del",onClick:onDiscard},prop.is_discarded?"\u21a9":"\ud83d\uddd1"),h("span",{style:{fontSize:"0.55rem",color:"#666",textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600}},prop.is_discarded?"Restore":"Discard")),
               !prop.is_sold&&h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:2}},h("button",{className:"icon-btn sold-btn",onClick:handleSold,title:"Mark as sold"},"\u2713"),h("span",{style:{fontSize:"0.55rem",color:"#666",textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600}},"Sold")),
             prop.created_at&&h("div",{style:{fontSize:"0.6rem",color:"#666",textAlign:"right",marginTop:6,letterSpacing:"0.02em",fontWeight:500}},"Added: "+new Date(prop.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}))
@@ -750,7 +751,7 @@
                     var isOwn=entered===author;
                     if(!isAdmin&&!isOwn){window.alert("You can only delete your own comments. Sunil can delete any comment.");return;}
                     supabase.from("property_comments").delete().eq("id",c.id).then(function(r){
-                      if(!r.error)setComments(function(prev){var n=Object.assign({},prev);n[prop.id]=(n[prop.id]||[]).filter(function(x){return x.id!==c.id;});return n;});
+                      if(!r.error&&onDeleteComment)onDeleteComment(c.id);
                     });
                   },style:{background:"#fdf0f0",border:"1px solid #f5c6cb",borderRadius:4,cursor:"pointer",fontSize:"0.65rem",color:"#c0392b",padding:"2px 6px",lineHeight:1.4,fontWeight:700},title:"Delete comment"},"Delete")
                 ),
@@ -914,7 +915,7 @@
           h("button",{onClick:loadData,style:{marginLeft:"auto",padding:"5px 12px",borderRadius:20,border:"1px solid #ddd",background:"#fff",fontSize:"0.68rem",fontFamily:"'Inter',sans-serif",cursor:"pointer",color:"#888"}},"\u21bb Refresh")
         ),
         view==="properties"&&h("div",{className:"cards-grid"},
-          filtered.map(function(prop){return h(PropertyCard,{key:prop.id,prop:prop,comments:comments[prop.id]||[],expanded:expanded===prop.id,lastVisit:lastVisit,onExpand:function(){setExpanded(expanded===prop.id?null:prop.id);},onFav:function(){toggleFav(prop);},onDiscard:function(){toggleDiscard(prop);},onSold:function(price){markAsSold(prop,price);},onComment:function(text,clear,isQ,p,done){submitComment(prop.id,text,clear,isQ,p,done);},onUpdate:function(updated,commentText,cmd){updateProperty(updated,commentText,cmd);}});}),
+          filtered.map(function(prop){return h(PropertyCard,{key:prop.id,prop:prop,comments:comments[prop.id]||[],expanded:expanded===prop.id,lastVisit:lastVisit,onExpand:function(){setExpanded(expanded===prop.id?null:prop.id);},onFav:function(){toggleFav(prop);},onDiscard:function(){toggleDiscard(prop);},onSold:function(price){markAsSold(prop,price);},onComment:function(text,clear,isQ,p,done){submitComment(prop.id,text,clear,isQ,p,done);},onUpdate:function(updated,commentText,cmd){updateProperty(updated,commentText,cmd);},onDeleteComment:function(commentId){setComments(function(prev){var n=Object.assign({},prev);n[prop.id]=(n[prop.id]||[]).filter(function(x){return x.id!==commentId;});return n;});}});}),
           filtered.length===0&&h("div",{style:{gridColumn:"1/-1",textAlign:"center",padding:"80px 20px",color:"#ccc",fontFamily:"'IBM Plex Mono',monospace",fontSize:"0.85rem"}},"No properties match this filter")
         ),
         view==="pipeline"&&h(PipelineView,null)
