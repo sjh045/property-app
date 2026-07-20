@@ -714,26 +714,36 @@
     // ── PROPERTY CARD ─────────────────────────────────────
     function PropertyCard(props){
       var prop=props.prop,comments=props.comments,expanded=props.expanded;
-      var onExpand=props.onExpand,onFav=props.onFav,onDiscard=props.onDiscard,onSold=props.onSold,onComment=props.onComment,onUpdate=props.onUpdate,onDeleteComment=props.onDeleteComment,lastVisit=props.lastVisit||new Date(0).toISOString();
+      var onExpand=props.onExpand,onFav=props.onFav,onDiscard=props.onDiscard,onSold=props.onSold,onComment=props.onComment,onUpdate=props.onUpdate,onDeleteComment=props.onDeleteComment,setComments=props.setComments,lastVisit=props.lastVisit||new Date(0).toISOString();
       var ns=useState(""),note=ns[0],setNote=ns[1];
       var ais=useState(false),aiLoading=ais[0],setAiLoading=ais[1];
       var yps=useState(null),yieldPopup=yps[0],setYieldPopup=yps[1];
       var ras=useState(false),reAnalysing=ras[0],setReAnalysing=ras[1];
       var ram=useState(""),reAnalyseMsg=ram[0],setReAnalyseMsg=ram[1];
+      var als=useState(false),actionLoading=als[0],setActionLoading=als[1];
 
       function reAnalyse(){
         setReAnalysing(true);setReAnalyseMsg("Analysing...");
-        var listing="Re-analyse this property with updated data:\n"
-          +"Address: "+prop.address+"\n"
-          +"Price: \u00a3"+prop.price+"\n"
-          +"Type: "+(prop.type||"")+"\n"
-          +"Tenure: "+(prop.tenure||"")+"\n"
-          +"Est monthly rent: \u00a3"+(prop.est_market_rent||"")+"\n"
-          +"Renovation cost: \u00a3"+(prop.reno_total||"0")+"\n"
-          +"Distance from HA8: "+(prop.distance_from_ha8||"")+"\n"
-          +"Current strategy: "+(prop.strategy||"")+"\n"
-          +"Current issues: "+(prop.issues_red_flags||"")+"\n"
-          +"Please re-score priority, next action, strategy and issues based on this updated data.";
+        var tg=prop.true_gross_yield_pct||0;
+        var listing="Re-analyse this property with the latest data and re-score it against our Deal Flow Criteria.\n\n"
+          +"ADDRESS: "+prop.address+"\n"
+          +"PRICE: \u00a3"+prop.price+"\n"
+          +"TYPE: "+(prop.type||"")+" | TENURE: "+(prop.tenure||"")+"\n"
+          +"EST MONTHLY RENT: \u00a3"+(prop.est_market_rent||"")+"\n"
+          +"RENOVATION COST: \u00a3"+(prop.reno_total||"0")+"\n"
+          +"TRUE GROSS YIELD: "+tg+"%\n"
+          +"DISTANCE FROM HA8: "+(prop.distance_from_ha8||"")+"\n"
+          +"CURRENT STRATEGY: "+(prop.strategy||"")+"\n"
+          +"CURRENT ISSUES: "+(prop.issues_red_flags||"")+"\n\n"
+          +"PRIORITY BANDING RULES:\n"
+          +"- HIGH: true gross yield 5.5%+\n"
+          +"- MEDIUM: true gross yield 4.5%-5.5%\n"
+          +"- LOW: true gross yield 3.5%-4.5%\n"
+          +"- REJECT: true gross yield below 3.5% (unless auto-approve exception applies)\n\n"
+          +"Re-score this property and return a JSON object with these fields: "
+          +"priority (HIGH/MEDIUM/LOW), next_action (one specific directive e.g. Book viewing / Offer at £X / Monitor / Pass), "
+          +"strategy (updated analysis), issues_red_flags (updated issues), development_potential. "
+          +"Return ONLY valid JSON, no markdown.";
         fetch(SUPA_URL+"/functions/v1/analyse-property",{
           method:"POST",
           headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPA_KEY},
@@ -754,8 +764,9 @@
             setReAnalysing(false);
             if(r.error){setReAnalyseMsg("Save failed");return;}
             setReAnalyseMsg("\u2713 Analysis updated");
-            if(onUpdate)onUpdate(Object.assign({},prop,patch),
-              "Re-analysis run — priority: "+(patch.priority||prop.priority),
+            var enriched=enrich(Object.assign({},prop,patch));
+            if(onUpdate)onUpdate(enriched,
+              "Re-analysis run — priority now: "+(patch.priority||prop.priority)+", true gross: "+(enriched.true_gross_yield_pct||0)+"%",
               {field:"priority",value:patch.priority,label:"re-analysis",isUrl:false});
             setTimeout(function(){setReAnalyseMsg("");},4000);
           });
@@ -782,6 +793,114 @@
         }
         if(isQ)setAiLoading(true);
         onComment(note,function(){setNote("");},isQ,prop,function(){setAiLoading(false);});
+      }
+
+      function handleAction(){
+        if(!note.trim()||actionLoading)return;
+        var user=userName;
+        if(!user||user.trim()===""){
+          var prompted=window.prompt("Please enter your name:");
+          if(!prompted||!prompted.trim())return;
+          setUserName(prompted.trim());
+          user=prompted.trim();
+        }
+        var actionText=note.trim();
+        setActionLoading(true);
+        // Save the action instruction as a comment first
+        supabase.from("property_comments").insert({
+          property_id:prop.id,user_name:user,action:"comment",comment:actionText
+        }).select().single().then(function(r){
+          if(r.data){
+            setComments&&setComments(function(prev){
+              var n=Object.assign({},prev);
+              n[prop.id]=(n[prop.id]||[]).concat(r.data);
+              return n;
+            });
+          }
+          setNote("");
+        });
+        // Build a prompt that gives Claude full property context + the instruction
+        var ctx=
+          "Property: "+prop.address+"\n"
+          +"Price: \u00a3"+prop.price+" | Type: "+(prop.type||"")+" | Tenure: "+(prop.tenure||"")+"\n"
+          +"Est rent: \u00a3"+(prop.est_market_rent||"")+" pcm | Reno: \u00a3"+(prop.reno_total||"0")+"\n"
+          +"True gross yield: "+(prop.true_gross_yield_pct||0)+"% | Priority: "+(prop.priority||"")+"\n"
+          +"Strategy: "+(prop.strategy||"")+"\n"
+          +"Issues: "+(prop.issues_red_flags||"")+"\n"
+          +"Next action: "+(prop.next_action||"")+"\n";
+        var fieldsCtx=
+          "\nUpdatable fields and current values:\n"
+          +"- est_market_rent (currently \u00a3"+(prop.est_market_rent||"unknown")+"/mo)\n"
+          +"- reno_total (currently \u00a3"+(prop.reno_total||"0")+")\n"
+          +"- price (currently \u00a3"+prop.price+")\n"
+          +"- priority (currently "+(prop.priority||"unknown")+") — must be HIGH, MEDIUM or LOW\n"
+          +"- next_action (currently: "+(prop.next_action||"not set")+")\n"
+          +"- strategy\n"
+          +"- issues_red_flags\n"
+          +"- is_favourite (currently "+(prop.is_favourite?"yes":"no")+")\n"
+          +"- is_discarded (currently "+(prop.is_discarded?"yes":"no")+")\n";
+        var systemPrompt=
+          "You are an assistant managing a UK property investment deal flow app. "
+          +"The user has typed an instruction about a specific property. "
+          +"You must:\n"
+          +"1. Understand what they want to do (update a field, answer a question, flag something).\n"
+          +"2. If it is a field update: return a JSON object with the fields to update, e.g. {\"est_market_rent\":1800} or {\"priority\":\"HIGH\"}.\n"
+          +"3. If it is a question: answer it directly and concisely (2-3 sentences max).\n"
+          +"4. If it is a task you cannot complete: explain why briefly.\n"
+          +"Always end your response with a plain-English confirmation of what you did or your answer. "
+          +"If returning JSON for field updates, put the JSON first on its own line, then the confirmation on the next line. "
+          +"Do not use markdown.\n\n"
+          +"Property context:\n"+ctx+fieldsCtx;
+        fetch(SUPA_URL+"/functions/v1/ask-property",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPA_KEY},
+          body:JSON.stringify({prompt:systemPrompt+"\n\nUser instruction: "+actionText})
+        }).then(function(r){return r.json();}).then(function(d){
+          var reply=d.result||"Unable to process action.";
+          // Try to extract JSON update from the reply
+          var jsonMatch=reply.match(/\{[^}]+\}/);
+          var confirmation=reply.replace(/\{[^}]+\}/,"").trim();
+          var patch={};
+          if(jsonMatch){
+            try{
+              var parsed=JSON.parse(jsonMatch[0]);
+              var allowed=["est_market_rent","reno_total","price","priority","next_action","strategy","issues_red_flags","is_favourite","is_discarded"];
+              allowed.forEach(function(k){if(parsed[k]!==undefined)patch[k]=parsed[k];});
+            }catch(e){}
+          }
+          // Apply any field updates
+          if(Object.keys(patch).length>0){
+            patch.updated_at=new Date().toISOString();
+            var enrichedPatch=enrich(Object.assign({},prop,patch));
+            supabase.from("properties").update(patch).eq("id",prop.id).then(function(r){
+              if(!r.error&&onUpdate)onUpdate(enrichedPatch,confirmation,{field:"action",value:confirmation,label:"action",isUrl:false});
+            });
+          }
+          // Save Claude reply as ai_response comment
+          var replyText=(Object.keys(patch).length>0?"\u2705 Done. ":"")+confirmation;
+          supabase.from("property_comments").insert({
+            property_id:prop.id,user_name:"Claude",action:"ai_response",comment:replyText
+          }).select().single().then(function(ar){
+            if(ar.data){
+              setComments&&setComments(function(prev){
+                var n=Object.assign({},prev);
+                n[prop.id]=(n[prop.id]||[]).concat(ar.data);
+                return n;
+              });
+            }
+            setActionLoading(false);
+          });
+        }).catch(function(){
+          supabase.from("property_comments").insert({
+            property_id:prop.id,user_name:"Claude",action:"ai_response",
+            comment:"Unable to process action — try again."
+          }).select().single().then(function(ar){
+            if(ar.data)setComments&&setComments(function(prev){
+              var n=Object.assign({},prev);n[prop.id]=(n[prop.id]||[]).concat(ar.data);return n;
+            });
+            setActionLoading(false);
+          });
+        });
       }
 
       function buildLinks(){
@@ -983,8 +1102,19 @@
           h("textarea",{value:note,onChange:function(e){setNote(e.target.value);},placeholder:"Comment, question (end with ?), or command e.g. 'reno cost is \u00a310k' or paste a listing url",style:{width:"100%",minHeight:48,border:"1px solid #ddd",borderRadius:8,padding:"8px 10px",fontSize:"0.75rem",color:"#1a1a2e",background:"#fff",marginBottom:8,resize:"vertical",fontFamily:"'Inter',sans-serif"}}),
           h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}},
             h("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},buildLinks()),
-            h("button",{className:"submit-btn",onClick:handleComment,disabled:aiLoading||(!note.trim())},
-              aiLoading?"Claude thinking...":detectCommand(note)?"\u{1F527} Apply Update":note.trim().endsWith("?")?"\u{1F916} Ask Claude":"Post"
+            h("div",{style:{display:"flex",gap:6}},
+              detectCommand(note)
+                ?h("button",{className:"submit-btn",onClick:handleComment,disabled:aiLoading||(!note.trim())},
+                    "\u{1F527} Apply Update")
+                :h("button",{className:"submit-btn",onClick:handleComment,disabled:aiLoading||(!note.trim())},
+                    aiLoading?"Thinking...":"Post"),
+              h("button",{onClick:handleAction,disabled:actionLoading||(!note.trim()),
+                style:{background:actionLoading?"#f9f9fb":"#4a0e22",color:actionLoading?"#aaa":"#fff",
+                border:"1px solid",borderColor:actionLoading?"#ddd":"#4a0e22",
+                borderRadius:6,padding:"8px 14px",fontSize:"0.75rem",
+                fontFamily:"'Inter',sans-serif",cursor:actionLoading?"not-allowed":"pointer",
+                fontWeight:600,transition:"all 0.15s"}},
+                actionLoading?"\u{1F916} Acting...":"\u{1F916} Action")
             )
           )
         )
@@ -1155,7 +1285,7 @@
           )
         ),
         view==="properties"&&h("div",{className:"cards-grid"},
-          filtered.map(function(prop){return h(PropertyCard,{key:prop.id,prop:prop,comments:comments[prop.id]||[],expanded:expanded===prop.id,lastVisit:lastVisit,onExpand:function(){setExpanded(expanded===prop.id?null:prop.id);},onFav:function(){toggleFav(prop);},onDiscard:function(){toggleDiscard(prop);},onSold:function(price){markAsSold(prop,price);},onComment:function(text,clear,isQ,p,done){submitComment(prop.id,text,clear,isQ,p,done);},onUpdate:function(updated,commentText,cmd){updateProperty(updated,commentText,cmd);},onDeleteComment:function(commentId){setComments(function(prev){var n=Object.assign({},prev);n[prop.id]=(n[prop.id]||[]).filter(function(x){return x.id!==commentId;});return n;});}});}),
+          filtered.map(function(prop){return h(PropertyCard,{key:prop.id,prop:prop,comments:comments[prop.id]||[],expanded:expanded===prop.id,lastVisit:lastVisit,onExpand:function(){setExpanded(expanded===prop.id?null:prop.id);},onFav:function(){toggleFav(prop);},onDiscard:function(){toggleDiscard(prop);},onSold:function(price){markAsSold(prop,price);},onComment:function(text,clear,isQ,p,done){submitComment(prop.id,text,clear,isQ,p,done);},onUpdate:function(updated,commentText,cmd){updateProperty(updated,commentText,cmd);},onDeleteComment:function(commentId){setComments(function(prev){var n=Object.assign({},prev);n[prop.id]=(n[prop.id]||[]).filter(function(x){return x.id!==commentId;});return n;});},setComments:setComments});}),
           filtered.length===0&&h("div",{style:{gridColumn:"1/-1",textAlign:"center",padding:"80px 20px",color:"#ccc",fontFamily:"'IBM Plex Mono',monospace",fontSize:"0.85rem"}},"No properties match this filter")
         ),
         view==="pipeline"&&h(PipelineView,null),
