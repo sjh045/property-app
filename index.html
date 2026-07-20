@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -365,6 +364,130 @@
       );
     }
 
+
+    // ── AUCTION DATES VIEW ────────────────────────────────
+    function AuctionView(){
+      var ls=useState([]),auctionLogs=ls[0],setAuctionLogs=ls[1];
+      var loading=useState(true),setLoading=loading[1];loading=loading[0];
+      var cs=useState({}),checked=cs[0],setChecked=cs[1];
+      var CHECKED_KEY="dealflow_auction_checked";
+
+      var AUCTION_HOUSES=[
+        "Savills","Allsop","Barnard Marcus","SDL Auctions",
+        "Network Auctions","iamsold","Clive Emson","Strettons",
+        "propertyauctions.io","EIG / Auction House","Andrews & Robertson"
+      ];
+
+      useEffect(function(){
+        // Load catalogue notifications from pipeline_log
+        supabase.from("pipeline_log")
+          .select("*")
+          .like("notes","CATALOGUE:%")
+          .order("ran_at",{ascending:false})
+          .limit(100)
+          .then(function(r){
+            setAuctionLogs(r.data||[]);setLoading(false);
+          });
+        // Load checked state from localStorage
+        try{
+          var saved=JSON.parse(localStorage.getItem(CHECKED_KEY)||"{}");
+          setChecked(saved);
+        }catch(e){}
+      },[]);
+
+      function toggleChecked(id){
+        setChecked(function(prev){
+          var next=Object.assign({},prev);
+          next[id]=!prev[id];
+          try{localStorage.setItem(CHECKED_KEY,JSON.stringify(next));}catch(e){}
+          return next;
+        });
+      }
+
+      // Group logs by auction house
+      var byHouse={};
+      auctionLogs.forEach(function(log){
+        var house=log.source||"Unknown";
+        if(!byHouse[house])byHouse[house]=[];
+        byHouse[house].push(log);
+      });
+
+      return h("div",{className:"pipeline-grid"},
+        h("div",{style:{marginBottom:24}},
+          h("div",{style:{fontFamily:"'IBM Plex Mono',monospace",fontSize:"1.1rem",fontWeight:700,color:"#4a0e22",marginBottom:4}},"Auction Catalogue Tracker"),
+          h("div",{style:{fontSize:"0.78rem",color:"#888",lineHeight:1.6}},
+            "Catalogue notifications received by email. When you have reviewed a catalogue and added any suitable properties, tick the checkbox. To add auction lots use the \u002B Add button and paste the lot URL or details."
+          )
+        ),
+        // Auction houses grid — show all, green dot if email received
+        h("div",{className:"pipeline-card",style:{marginBottom:16}},
+          h("div",{className:"stitle",style:{marginBottom:12}},"Auction Houses Monitored"),
+          h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}},
+            AUCTION_HOUSES.map(function(house){
+              var houseLogs=byHouse[house]||[];
+              var latest=houseLogs.length>0?houseLogs[0]:null;
+              var hasEmail=houseLogs.length>0;
+              return h("div",{key:house,style:{display:"flex",justifyContent:"space-between",alignItems:"center",
+                padding:"10px 14px",background:"#f9f9fb",borderRadius:8,border:"1px solid #eee"}},
+                h("div",{style:{display:"flex",alignItems:"center",gap:8}},
+                  h("span",{style:{width:8,height:8,borderRadius:"50%",background:hasEmail?"#2e7d32":"#ddd",display:"inline-block",flexShrink:0}}),
+                  h("span",{style:{fontSize:"0.82rem",fontWeight:600,color:"#1a1a2e"}},house)
+                ),
+                h("div",{style:{textAlign:"right",fontSize:"0.68rem",color:"#aaa"}},
+                  latest?new Date(latest.ran_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"}):"No email yet"
+                )
+              );
+            })
+          )
+        ),
+        // Catalogue log with checkboxes
+        loading?h("div",{style:{color:"#aaa",fontSize:"0.78rem",padding:"20px"}},"Loading..."):
+        auctionLogs.length===0?
+          h("div",{className:"pipeline-card"},
+            h("div",{style:{textAlign:"center",padding:"40px 20px",color:"#aaa",fontSize:"0.82rem"}},"No auction catalogue emails received yet. Sign up for alerts at each auction house and they will appear here.")
+          ):
+          h("div",null,
+            h("div",{className:"stitle",style:{marginBottom:12}},"Catalogue Notifications — Tick when reviewed"),
+            auctionLogs.map(function(log){
+              var note=log.notes||"";
+              var isChecked=!!checked[log.id];
+              // Extract any URL from the notes
+              var urlMatch=note.match(/https?:\/\/[^\s]+/);
+              var url=urlMatch?urlMatch[0]:null;
+              return h("div",{key:log.id,style:{
+                background:isChecked?"#f0f7f0":"#fff",
+                border:"1px solid",
+                borderColor:isChecked?"#c8e6c9":"#e2e2e8",
+                borderRadius:8,padding:"12px 16px",marginBottom:8,
+                display:"flex",alignItems:"flex-start",gap:12,
+                opacity:isChecked?0.7:1
+              }},
+                h("input",{type:"checkbox",checked:isChecked,
+                  onChange:function(){toggleChecked(log.id);},
+                  style:{marginTop:2,cursor:"pointer",width:16,height:16,accentColor:"#5c1a2e"}}),
+                h("div",{style:{flex:1}},
+                  h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}},
+                    h("span",{style:{fontSize:"0.82rem",fontWeight:700,color:isChecked?"#2e7d32":"#1a1a2e"}},
+                      (isChecked?"\u2713 Reviewed — ":"")+log.source
+                    ),
+                    h("span",{style:{fontSize:"0.68rem",color:"#aaa"}},
+                      new Date(log.ran_at).toLocaleString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})
+                    )
+                  ),
+                  h("div",{style:{fontSize:"0.75rem",color:"#666",lineHeight:1.5,marginBottom:url?6:0}},
+                    note.replace(/^CATALOGUE:\s*/i,"").replace(/https?:\/\/[^\s]+/g,"").trim()
+                  ),
+                  url&&h("a",{href:url,target:"_blank",rel:"noreferrer",
+                    style:{fontSize:"0.72rem",color:"#5c1a2e",fontWeight:600}},
+                    "\u2197 View Catalogue"
+                  )
+                )
+              );
+            })
+          )
+      );
+    }
+
     // ── PIPELINE STATUS VIEW ──────────────────────────────
     function PipelineView(){
       var ls=useState([]),logs=ls[0],setLogs=ls[1];
@@ -373,10 +496,27 @@
       var bfp=useState(""),backfillProgress=bfp[0],setBackfillProgress=bfp[1];
       var bfc=useState(0),backfillCount=bfc[0],setBackfillCount=bfc[1];
       var bft=useState(0),backfillTotal=bft[0],setBackfillTotal=bft[1];
+      var pcs=useState(null),propCounts=pcs[0],setPropCounts=pcs[1];
 
       useEffect(function(){
         supabase.from("pipeline_log").select("*").gte("ran_at",new Date(Date.now()-24*60*60*1000).toISOString()).order("ran_at",{ascending:false}).limit(200).then(function(r){
           setLogs(r.data||[]);setLoading(false);
+        });
+        // Live counts directly from properties table
+        var day1=new Date(Date.now()-24*60*60*1000).toISOString();
+        var day7=new Date(Date.now()-7*24*60*60*1000).toISOString();
+        var day30=new Date(Date.now()-30*24*60*60*1000).toISOString();
+        Promise.all([
+          supabase.from("properties").select("id,created_at,priority,address").order("created_at",{ascending:false})
+        ]).then(function(r){
+          var all=r[0].data||[];
+          setPropCounts({
+            total:all.filter(function(p){return !p.is_discarded&&!p.is_sold;}).length,
+            last24h:all.filter(function(p){return new Date(p.created_at)>new Date(day1);}).length,
+            last7d:all.filter(function(p){return new Date(p.created_at)>new Date(day7);}).length,
+            last30d:all.filter(function(p){return new Date(p.created_at)>new Date(day30);}).length,
+            recent:all.slice(0,20)
+          });
         });
       },[]);
 
@@ -463,7 +603,31 @@
       return h("div",{className:"pipeline-grid"},
         h("div",{style:{marginBottom:24}},
           h("div",{style:{fontFamily:"'IBM Plex Mono',monospace",fontSize:"1.1rem",fontWeight:700,color:"#4a0e22",marginBottom:4}},"Pipeline Status"),
-          h("div",{style:{fontSize:"0.78rem",color:"#888"}},"Email scan runs every hour via Google Apps Script on sunil.j.harji@gmail.com")
+          h("div",{style:{fontSize:"0.78rem",color:"#888"}},"Email scan runs every 4 hours via Google Apps Script on sunil.j.harji@gmail.com")
+        ),
+        propCounts&&h("div",{className:"pipeline-card",style:{marginBottom:16}},
+          h("div",{className:"stitle",style:{marginBottom:12}},"Properties in Stack — Live Count from Database"),
+          h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:12,marginBottom:16}},
+            [{label:"Added last 24h",value:propCounts.last24h,col:"#2e7d32"},
+             {label:"Added last 7 days",value:propCounts.last7d,col:"#b45309"},
+             {label:"Added last 30 days",value:propCounts.last30d,col:"#1565c0"},
+             {label:"Total active",value:propCounts.total,col:"#4a0e22"}
+            ].map(function(s){return h("div",{key:s.label,style:{textAlign:"center",padding:"12px 8px",background:"#f9f9fb",borderRadius:8,border:"1px solid #eee"}},
+              h("div",{style:{fontSize:"0.62rem",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:"#999",marginBottom:6}},s.label),
+              h("div",{style:{fontFamily:"'IBM Plex Mono',monospace",fontSize:"1.4rem",fontWeight:700,color:s.col}},s.value)
+            );})
+          ),
+          h("div",{className:"stitle",style:{marginBottom:8}},"Recently Added Properties"),
+          h("table",{className:"log-table"},
+            h("thead",null,h("tr",null,h("th",null,"Date Added"),h("th",null,"Address"),h("th",null,"Priority"))),
+            h("tbody",null,(propCounts.recent||[]).map(function(p){
+              return h("tr",{key:p.id},
+                h("td",null,new Date(p.created_at).toLocaleString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})),
+                h("td",null,p.address),
+                h("td",{style:{color:p.priority==="HIGH"?"#2e7d32":p.priority==="MEDIUM"?"#b45309":"#c0392b",fontWeight:600}},p.priority||"\u2014")
+              );
+            }))
+          )
         ),
         h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:16,marginBottom:24}},
           [
@@ -554,6 +718,51 @@
       var ns=useState(""),note=ns[0],setNote=ns[1];
       var ais=useState(false),aiLoading=ais[0],setAiLoading=ais[1];
       var yps=useState(null),yieldPopup=yps[0],setYieldPopup=yps[1];
+      var ras=useState(false),reAnalysing=ras[0],setReAnalysing=ras[1];
+      var ram=useState(""),reAnalyseMsg=ram[0],setReAnalyseMsg=ram[1];
+
+      function reAnalyse(){
+        setReAnalysing(true);setReAnalyseMsg("Analysing...");
+        var listing="Re-analyse this property with updated data:\n"
+          +"Address: "+prop.address+"\n"
+          +"Price: \u00a3"+prop.price+"\n"
+          +"Type: "+(prop.type||"")+"\n"
+          +"Tenure: "+(prop.tenure||"")+"\n"
+          +"Est monthly rent: \u00a3"+(prop.est_market_rent||"")+"\n"
+          +"Renovation cost: \u00a3"+(prop.reno_total||"0")+"\n"
+          +"Distance from HA8: "+(prop.distance_from_ha8||"")+"\n"
+          +"Current strategy: "+(prop.strategy||"")+"\n"
+          +"Current issues: "+(prop.issues_red_flags||"")+"\n"
+          +"Please re-score priority, next action, strategy and issues based on this updated data.";
+        fetch(SUPA_URL+"/functions/v1/analyse-property",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPA_KEY},
+          body:JSON.stringify({listing:listing,maxProps:1,currentStack:"[]"})
+        }).then(function(r){return r.json();}).then(function(d){
+          var text=d.result||"";
+          var clean=text.replace(/```json\s*/gi,"").replace(/```\s*/g,"").trim();
+          var s=clean.indexOf("["),e=clean.lastIndexOf("]");
+          if(s!==-1&&e!==-1)clean=clean.slice(s+1,e);
+          var os=clean.indexOf("{"),oe=clean.lastIndexOf("}");
+          if(os===-1||oe===-1){setReAnalysing(false);setReAnalyseMsg("No result returned");return;}
+          var updated=JSON.parse(clean.slice(os,oe+1));
+          var patch={};
+          ["priority","next_action","strategy","issues_red_flags","est_market_rent",
+           "reno_total","development_potential"].forEach(function(k){if(updated[k]!==undefined)patch[k]=updated[k];});
+          patch.updated_at=new Date().toISOString();
+          supabase.from("properties").update(patch).eq("id",prop.id).then(function(r){
+            setReAnalysing(false);
+            if(r.error){setReAnalyseMsg("Save failed");return;}
+            setReAnalyseMsg("\u2713 Analysis updated");
+            if(onUpdate)onUpdate(Object.assign({},prop,patch),
+              "Re-analysis run — priority: "+(patch.priority||prop.priority),
+              {field:"priority",value:patch.priority,label:"re-analysis",isUrl:false});
+            setTimeout(function(){setReAnalyseMsg("");},4000);
+          });
+        }).catch(function(){
+          setReAnalysing(false);setReAnalyseMsg("Error — try again");
+        });
+      }
       var pc=PC(prop.priority),guide=isGuide(prop);var isNew=prop.created_at&&new Date(prop.created_at)>new Date(lastVisit);
       var incomplete=prop.data_quality==="incomplete"||!prop.address||prop.address.length<5||!prop.price;
       var cardClass="card"+(prop.is_favourite?" fav":"")+(prop.is_discarded?" disc":"")+(prop.is_sold?" sold":"")+(incomplete?" incomplete":"")+(isNew&&!prop.is_discarded&&!prop.is_sold?" new-prop":"");
@@ -682,7 +891,19 @@
               prop.equity_created&&h("div",{className:"acq-row",style:{background:"#e8f5e9"}},h("span",{style:{color:"#2e7d32",fontWeight:600}},"Est. equity created"),h("span",{style:{fontWeight:700,color:"#2e7d32",fontFamily:"'IBM Plex Mono',monospace"}},fmt(prop.equity_created)))
             )
           ),
-          h("div",{style:{borderTop:"1px solid #eee",paddingTop:8,marginBottom:expanded?14:0}},h("button",{className:"expand-btn",onClick:onExpand},expanded?"\u25b2 Collapse":"\u25bc Full analysis")),
+          h("div",{style:{borderTop:"1px solid #eee",paddingTop:8,marginBottom:expanded?14:0,
+            display:"flex",justifyContent:"space-between",alignItems:"center"}},
+          h("button",{className:"expand-btn",onClick:onExpand},expanded?"\u25b2 Collapse":"\u25bc Full analysis"),
+          h("div",{style:{display:"flex",alignItems:"center",gap:8}},
+            reAnalyseMsg&&h("span",{style:{fontSize:"0.68rem",color:"#2e7d32",fontWeight:600}},reAnalyseMsg),
+            h("button",{onClick:reAnalyse,disabled:reAnalysing,
+              style:{fontSize:"0.68rem",fontFamily:"'Inter',sans-serif",
+              background:reAnalysing?"#f9f9fb":"#fdf6f8",
+              border:"1px solid #e8d0d8",borderRadius:6,padding:"4px 10px",
+              color:reAnalysing?"#bbb":"#7c3d52",cursor:reAnalysing?"not-allowed":"pointer",
+              fontWeight:600}},reAnalysing?"Analysing...":"\u{1F504} Re-run Analysis")
+          )
+        ),
           expanded&&h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}},
             h("div",{style:{gridColumn:"1/-1"}},h("div",{className:"stitle",style:{color:"#7c3d52"}},"Strategy"),h("div",{style:{background:"#fafafa",border:"1px solid #eee",padding:"12px 14px",borderRadius:8,fontSize:"0.78rem",lineHeight:1.6,color:"#333"}},prop.strategy||"\u2014")),
             h("div",null,h("div",{className:"stitle"},"Development potential"),h("div",{style:{fontSize:"0.72rem",color:"#555",lineHeight:1.6}},prop.development_potential||"\u2014")),
@@ -775,6 +996,7 @@
       var ps=useState([]),properties=ps[0],setProperties=ps[1];
       var cs=useState({}),comments=cs[0],setComments=cs[1];
       var fs=useState("ALL"),filter=fs[0],setFilter=fs[1];
+      var dfs=useState(0),dateFilter=dfs[0],setDateFilter=dfs[1]; // 0=all, else days
       var ls=useState(true),loading=ls[0],setLoading=ls[1];
       var ns=useState(localStorage.getItem("dealflow_user_name")||""),userName=ns[0],setUserNameRaw=ns[1];
       function setUserName(v){setUserNameRaw(v);localStorage.setItem("dealflow_user_name",v);}
@@ -876,7 +1098,9 @@
       }
 
       var FILTERS=["ALL","HIGH","MEDIUM","LOW","FAVOURITES","DISCARDED","SOLD"];
+      var dateThreshold=dateFilter>0?new Date(Date.now()-dateFilter*24*60*60*1000):null;
       var filtered=properties.filter(function(p){
+        if(dateThreshold&&p.created_at&&new Date(p.created_at)<dateThreshold)return false;
         if(filter==="FAVOURITES")return p.is_favourite&&!p.is_discarded&&!p.is_sold;
         if(filter==="DISCARDED")return p.is_discarded;
         if(filter==="SOLD")return p.is_sold;
@@ -903,6 +1127,7 @@
           h("div",{style:{display:"flex",gap:6,alignItems:"center"}},
             h("button",{className:"nav-btn"+(view==="properties"?" on":""),onClick:function(){setView("properties");}},"Properties"),
             h("button",{className:"nav-btn"+(view==="pipeline"?" on":""),onClick:function(){setView("pipeline");}},"Pipeline Status"),
+            h("button",{className:"nav-btn"+(view==="auctions"?" on":""),onClick:function(){setView("auctions");}},"Auctions"),
             h("button",{className:"nav-btn",onClick:function(){setShowAdd(true);},style:{background:"#fff",color:"#4a0e22",border:"none",fontWeight:700}},"+  Add")
           ),
           h("div",{style:{display:"flex",alignItems:"center",gap:8}},
@@ -912,13 +1137,29 @@
         ),
         view==="properties"&&h("div",{style:{background:"#fff",borderBottom:"1px solid #e2e2e8",padding:"8px 28px",display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}},
           FILTERS.map(function(f){var cls="filter-btn";if(filter===f){  if(f==="HIGH")cls+=" on-high";  else if(f==="MEDIUM")cls+=" on-medium";  else if(f==="LOW")cls+=" on-low";  else cls+=" on";}return h("button",{key:f,className:cls,onClick:function(){setFilter(f);}},fl(f));}),
-          h("button",{onClick:loadData,style:{marginLeft:"auto",padding:"5px 12px",borderRadius:20,border:"1px solid #ddd",background:"#fff",fontSize:"0.68rem",fontFamily:"'Inter',sans-serif",cursor:"pointer",color:"#888"}},"\u21bb Refresh")
+          h("div",{style:{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}},
+            h("select",{value:dateFilter,onChange:function(e){setDateFilter(Number(e.target.value));},
+              style:{fontSize:"0.68rem",fontFamily:"'Inter',sans-serif",border:"1px solid #ddd",
+              borderRadius:20,padding:"4px 10px",color:"#666",background:"#fff",cursor:"pointer"}},
+              h("option",{value:0},"All dates"),
+              h("option",{value:1},"Today"),
+              h("option",{value:2},"Last 2 days"),
+              h("option",{value:5},"Last 5 days"),
+              h("option",{value:7},"Last 7 days"),
+              h("option",{value:10},"Last 10 days"),
+              h("option",{value:20},"Last 20 days")
+            ),
+            h("button",{onClick:loadData,style:{padding:"5px 12px",borderRadius:20,
+              border:"1px solid #ddd",background:"#fff",fontSize:"0.68rem",
+              fontFamily:"'Inter',sans-serif",cursor:"pointer",color:"#888"}},"\u21bb")
+          )
         ),
         view==="properties"&&h("div",{className:"cards-grid"},
           filtered.map(function(prop){return h(PropertyCard,{key:prop.id,prop:prop,comments:comments[prop.id]||[],expanded:expanded===prop.id,lastVisit:lastVisit,onExpand:function(){setExpanded(expanded===prop.id?null:prop.id);},onFav:function(){toggleFav(prop);},onDiscard:function(){toggleDiscard(prop);},onSold:function(price){markAsSold(prop,price);},onComment:function(text,clear,isQ,p,done){submitComment(prop.id,text,clear,isQ,p,done);},onUpdate:function(updated,commentText,cmd){updateProperty(updated,commentText,cmd);},onDeleteComment:function(commentId){setComments(function(prev){var n=Object.assign({},prev);n[prop.id]=(n[prop.id]||[]).filter(function(x){return x.id!==commentId;});return n;});}});}),
           filtered.length===0&&h("div",{style:{gridColumn:"1/-1",textAlign:"center",padding:"80px 20px",color:"#ccc",fontFamily:"'IBM Plex Mono',monospace",fontSize:"0.85rem"}},"No properties match this filter")
         ),
-        view==="pipeline"&&h(PipelineView,null)
+        view==="pipeline"&&h(PipelineView,null),
+        view==="auctions"&&h(AuctionView,null)
       );
     }
 
