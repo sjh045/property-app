@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -164,62 +165,6 @@
     }
 
     // ── DETECT AND APPLY COMMENT COMMANDS ────────────────
-    function detectCommand(text){
-      var low=text.toLowerCase();
-      // URL command — checked first since it needs different parsing than numeric fields.
-      // Any property listing URL found anywhere in the comment is treated as a listing_url
-      // update, regardless of surrounding text, keywords, or whitespace.
-      var urlMatch=text.match(/https?:\/\/[^\s)\]]+/);
-      if(urlMatch){
-        var isPropertyUrl=/rightmove\.co\.uk\/properties\/\d+/i.test(urlMatch[0])||
-          /zoopla\.co\.uk\/for-sale\/details\/\d+/i.test(urlMatch[0])||
-          /propertyauctions\.io|sdlauctions\.co\.uk|allsop\.co\.uk|savills\.com|barnardmarcus|strettons\.co\.uk|networkauctions|iamsold\.co\.uk|cliveemson\.co\.uk/i.test(urlMatch[0]);
-        if(isPropertyUrl){
-          var cleanUrl=urlMatch[0].split("?")[0].split("#")[0].replace(/[.,;]+$/,"");
-          return {field:"listing_url",value:cleanUrl,label:"listing url",isUrl:true};
-        }
-      }
-      var fields=[
-        {keys:["renovation cost","reno cost","reno","renovation"],field:"reno_total"},
-        {keys:["rent","rental"],field:"est_market_rent"},
-        {keys:["price","asking price"],field:"price"},
-        {keys:["legal fees","legal"],field:"legal_fees"},
-      ];
-      for(var i=0;i<fields.length;i++){
-        for(var j=0;j<fields[i].keys.length;j++){
-          if(low.indexOf(fields[i].keys[j])!==-1){
-            var match=text.match(/[\u00a3\$]?\s*(\d[\d,]*)/);
-            if(match){
-              var val=Number(match[1].replace(/,/g,""));
-              if(val>0) return {field:fields[i].field,value:val,label:fields[i].keys[j]};
-            }
-          }
-        }
-      }
-      return null;
-    }
-
-    function applyCommand(prop,cmd){
-      var updated=Object.assign({},prop);
-      updated[cmd.field]=cmd.value;
-      // Recalculate using Deal Flow Criteria definitions
-      var price=Number(updated.price)||0,reno=Number(updated.reno_total)||0,s=sdlt(price);
-      var legal=LEGAL_FEES_FLAT;
-      var trueGrossBase=price+s+legal;
-      var total=trueGrossBase+reno;
-      var rent=Number(updated.est_market_rent)||0,annual=rent*12;
-      var gy=(rent>0&&price>0)?parseFloat((annual/price*100).toFixed(2)):0;
-      var tg=(rent>0&&trueGrossBase>0)?parseFloat((annual/trueGrossBase*100).toFixed(2)):0;
-      var tn=(rent>0&&total>0)?parseFloat((annual/total*100).toFixed(2)):0;
-      var lo=Number(updated.est_market_value_low)||0,hi=Number(updated.est_market_value_high)||0;
-      var refVal=Number(updated.est_refinance_value)||Math.round((lo+hi)/2),mort=Math.round(refVal*0.75);
-      var valueCreated=refVal?Math.round(refVal-price-reno):null;
-      updated.sdlt=s;updated.legal_fees=legal;updated.gross_yield_pct=gy;updated.total_acquisition_cost=total;
-      updated.true_gross_yield_pct=tg;updated.true_net_yield_pct=tn;
-      updated.equity_created=valueCreated;updated.value_created=valueCreated;
-      updated.capital_remaining=Math.round(total-mort);
-      return updated;
-    }
 
     // ── YIELD POPUP COMPONENT ─────────────────────────────
     function YieldPopup(props){
@@ -714,13 +659,23 @@
     // ── PROPERTY CARD ─────────────────────────────────────
     function PropertyCard(props){
       var prop=props.prop,comments=props.comments,expanded=props.expanded;
-      var onExpand=props.onExpand,onFav=props.onFav,onDiscard=props.onDiscard,onSold=props.onSold,onComment=props.onComment,onUpdate=props.onUpdate,onDeleteComment=props.onDeleteComment,setComments=props.setComments,lastVisit=props.lastVisit||new Date(0).toISOString();
+      var onExpand=props.onExpand,onFav=props.onFav,onDiscard=props.onDiscard,onSold=props.onSold,onComment=props.onComment,onUpdate=props.onUpdate,onDeleteComment=props.onDeleteComment,setComments=props.setComments,userName=props.userName||"",setUserName=props.setUserName||function(){},lastVisit=props.lastVisit||new Date(0).toISOString();
       var ns=useState(""),note=ns[0],setNote=ns[1];
       var ais=useState(false),aiLoading=ais[0],setAiLoading=ais[1];
       var yps=useState(null),yieldPopup=yps[0],setYieldPopup=yps[1];
       var ras=useState(false),reAnalysing=ras[0],setReAnalysing=ras[1];
       var ram=useState(""),reAnalyseMsg=ram[0],setReAnalyseMsg=ram[1];
       var als=useState(false),actionLoading=als[0],setActionLoading=als[1];
+
+      function getName(){
+        var n=userName||(typeof localStorage!=="undefined"?localStorage.getItem("dealflow_user_name")||"":"");
+        if(n&&n.trim())return n.trim();
+        var p=window.prompt("Your name (remembered on this device):");
+        if(!p||!p.trim())return null;
+        var name=p.trim();
+        setUserName(name);
+        return name;
+      }
 
       function reAnalyse(){
         setReAnalysing(true);setReAnalyseMsg("Analysing...");
@@ -784,25 +739,15 @@
         if(!note.trim())return;
         // Post just saves the comment as-is — no command detection, no AI
         // Use the Action button for smart processing
-        var user=userName;
-        if(!user||user.trim()===""){
-          var prompted=window.prompt("Please enter your name to add a comment:");
-          if(!prompted||!prompted.trim())return;
-          setUserName(prompted.trim());
-          user=prompted.trim();
-        }
-        onComment(note,function(){setNote("");},false,prop,function(){});
+        var user=getName();
+        if(!user)return;
+        onComment(note,function(){setNote("");},false,prop,function(){},user);
       }
 
       function handleAction(){
         if(!note.trim()||actionLoading)return;
-        var user=userName;
-        if(!user||user.trim()===""){
-          var prompted=window.prompt("Please enter your name:");
-          if(!prompted||!prompted.trim())return;
-          setUserName(prompted.trim());
-          user=prompted.trim();
-        }
+        var user=getName();
+        if(!user)return;
         var actionText=note.trim();
         setActionLoading(true);
         // Save the action instruction as a comment first
@@ -818,96 +763,71 @@
           }
           setNote("");
         });
-        // Build a prompt that gives Claude full property context + the instruction
-        var ctx=
-          "Property: "+prop.address+"\n"
-          +"Price: \u00a3"+prop.price+" | Type: "+(prop.type||"")+" | Tenure: "+(prop.tenure||"")+"\n"
-          +"Est rent: \u00a3"+(prop.est_market_rent||"")+" pcm | Reno: \u00a3"+(prop.reno_total||"0")+"\n"
-          +"True gross yield: "+(prop.true_gross_yield_pct||0)+"% | Priority: "+(prop.priority||"")+"\n"
-          +"Strategy: "+(prop.strategy||"")+"\n"
-          +"Issues: "+(prop.issues_red_flags||"")+"\n"
-          +"Next action: "+(prop.next_action||"")+"\n";
-        var fieldsCtx=
-          "\nUpdatable fields and current values:\n"
-          +"- est_market_rent (currently \u00a3"+(prop.est_market_rent||"unknown")+"/mo)\n"
-          +"- reno_total / renovation cost (currently \u00a3"+(prop.reno_total||"0")+")\n"
-          +"- price (currently \u00a3"+prop.price+")\n"
-          +"- est_refinance_value / post works value / refinance value (currently \u00a3"+(prop.est_refinance_value||"not set")+")\n"
-          +"- est_market_value_low (currently \u00a3"+(prop.est_market_value_low||"not set")+")\n"
-          +"- est_market_value_high (currently \u00a3"+(prop.est_market_value_high||"not set")+")\n"
-          +"- priority (currently "+(prop.priority||"unknown")+") — must be HIGH, MEDIUM or LOW\n"
-          +"- next_action (currently: "+(prop.next_action||"not set")+")\n"
-          +"- strategy\n"
-          +"- development_potential\n"
-          +"- issues_red_flags\n"
-          +"- listing_url (currently: "+(prop.listing_url||"not set")+")\n"
-          +"- is_favourite (currently "+(prop.is_favourite?"yes":"no")+")\n"
-          +"- is_discarded (currently "+(prop.is_discarded?"yes":"no")+")\n"
-          +"\nIMPORTANT: When the user mentions post works value, refinance value, estimated value after works, "
-          +"or any synonym, map that to est_refinance_value. "
-          +"When they mention renovation cost, reno, works cost, map to reno_total. "
-          +"Always extract the numeric value from their message (strip \u00a3 signs and commas).\n";
-        var systemPrompt=
-          "You are an assistant managing a UK property investment deal flow app. "
-          +"The user has typed an instruction about a specific property. "
-          +"You must:\n"
-          +"1. Understand what they want to do (update a field, answer a question, flag something).\n"
-          +"2. If it is a field update: return a JSON object with the fields to update, e.g. {\"est_market_rent\":1800} or {\"priority\":\"HIGH\"}.\n"
-          +"3. If it is a question: answer it directly and concisely (2-3 sentences max).\n"
-          +"4. If it is a task you cannot complete: explain why briefly.\n"
-          +"Always end your response with a plain-English confirmation of what you did or your answer. "
-          +"If returning JSON for field updates, put the JSON first on its own line, then the confirmation on the next line. "
-          +"Do not use markdown.\n\n"
-          +"Property context:\n"+ctx+fieldsCtx;
+        // Keep prompt short to avoid timeouts
+        var prompt=
+          "Property: "+prop.address+" | Price: \u00a3"+prop.price+
+          " | Rent: \u00a3"+(prop.est_market_rent||"?")+"/mo"+
+          " | Reno: \u00a3"+(prop.reno_total||"0")+
+          " | Refinance value: \u00a3"+(prop.est_refinance_value||"not set")+
+          " | Priority: "+(prop.priority||"")+"\n\n"+
+          "Updatable fields: est_market_rent, reno_total, price, est_refinance_value, "+
+          "est_market_value_low, est_market_value_high, priority (HIGH/MEDIUM/LOW), "+
+          "next_action, strategy, issues_red_flags, development_potential, listing_url, "+
+          "is_favourite (true/false), is_discarded (true/false).\n\n"+
+          "Instruction: "+actionText+"\n\n"+
+          "If this is a field update, respond with ONLY a JSON object on the first line "+
+          "(e.g. {\"est_refinance_value\":400000}) then a one-sentence confirmation. "+
+          "If it is a question, just answer it in 2-3 sentences. No markdown.";
         fetch(SUPA_URL+"/functions/v1/ask-property",{
           method:"POST",
           headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPA_KEY},
-          body:JSON.stringify({prompt:systemPrompt+"\n\nUser instruction: "+actionText})
-        }).then(function(r){return r.json();}).then(function(d){
-          var reply=d.result||"Unable to process action.";
-          // Extract JSON using a more robust approach — find outermost { }
+          body:JSON.stringify({prompt:prompt})
+        }).then(function(r){
+          if(!r.ok){
+            return r.text().then(function(t){throw new Error("HTTP "+r.status+": "+t.slice(0,100));});
+          }
+          return r.json();
+        }).then(function(d){
+          var reply=d.result||d.error||"No response received.";
+          // Extract JSON — find outermost { }
           var patch={};
           var firstBrace=reply.indexOf("{");
           var lastBrace=reply.lastIndexOf("}");
           if(firstBrace!==-1&&lastBrace>firstBrace){
             try{
-              var jsonStr=reply.slice(firstBrace,lastBrace+1);
-              var parsed=JSON.parse(jsonStr);
-              var allowed=["est_market_rent","reno_total","price","priority","next_action","strategy","issues_red_flags","is_favourite","is_discarded","est_refinance_value","est_market_value_low","est_market_value_high","development_potential","listing_url","agent_name","agent_phone"];
+              var parsed=JSON.parse(reply.slice(firstBrace,lastBrace+1));
+              var allowed=["est_market_rent","reno_total","price","priority","next_action",
+                "strategy","issues_red_flags","is_favourite","is_discarded","est_refinance_value",
+                "est_market_value_low","est_market_value_high","development_potential",
+                "listing_url","agent_name","agent_phone"];
               allowed.forEach(function(k){if(parsed[k]!==undefined)patch[k]=parsed[k];});
             }catch(e){}
           }
-          // Confirmation text = everything after the JSON block (or full reply if no JSON)
           var confirmation=firstBrace!==-1&&lastBrace>firstBrace
             ?reply.slice(lastBrace+1).trim()||reply.slice(0,firstBrace).trim()||"Done."
             :reply.trim();
-          // Apply any field updates
           if(Object.keys(patch).length>0){
             patch.updated_at=new Date().toISOString();
             var enrichedPatch=enrich(Object.assign({},prop,patch));
             supabase.from("properties").update(patch).eq("id",prop.id).then(function(ur){
-              if(!ur.error&&onUpdate)onUpdate(enrichedPatch,confirmation,{field:"action",value:confirmation,label:"action",isUrl:false});
+              if(!ur.error&&onUpdate)onUpdate(enrichedPatch,confirmation,
+                {field:"action",value:confirmation,label:"action",isUrl:false});
             });
           }
-          // Save Claude reply as ai_response comment
           var replyText=(Object.keys(patch).length>0?"\u2705 Done. ":"")+confirmation;
           supabase.from("property_comments").insert({
             property_id:prop.id,user_name:"Claude",action:"ai_response",comment:replyText
           }).select().single().then(function(ar){
-            if(ar.data){
-              setComments&&setComments(function(prev){
-                var n=Object.assign({},prev);
-                n[prop.id]=(n[prop.id]||[]).concat(ar.data);
-                return n;
-              });
-            }
+            if(ar.data)setComments&&setComments(function(prev){
+              var n=Object.assign({},prev);
+              n[prop.id]=(n[prop.id]||[]).concat(ar.data);return n;
+            });
             setActionLoading(false);
           });
         }).catch(function(err){
-          var errMsg="Unable to process action — try again.";
+          var errMsg="\u274c Action failed: "+(err&&err.message?err.message:"unknown error");
           supabase.from("property_comments").insert({
-            property_id:prop.id,user_name:"Claude",action:"ai_response",
-            comment:errMsg
+            property_id:prop.id,user_name:"Claude",action:"ai_response",comment:errMsg
           }).select().single().then(function(ar){
             if(ar.data)setComments&&setComments(function(prev){
               var n=Object.assign({},prev);n[prop.id]=(n[prop.id]||[]).concat(ar.data);return n;
@@ -1097,7 +1017,7 @@
                     h("span",{style:{fontSize:"0.6rem",color:"#777",marginLeft:8}},new Date(c.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}))
                   ),
                   !isAI&&h("button",{onClick:function(){
-                    var name=window.prompt("Enter your name to delete this comment:");
+                    var name=getName();
                     if(!name)return;
                     var author=(c.user_name||"").toLowerCase().trim();
                     var entered=name.toLowerCase().trim();
@@ -1212,15 +1132,9 @@
         setComments(function(prev){var n=Object.assign({},prev);n[updated.id]=(n[updated.id]||[]).concat({id:Date.now(),property_id:updated.id,user_name:"System",action:"system_update",comment:changeNote,created_at:new Date().toISOString()});return n;});
       }
 
-      function submitComment(propId,text,clearFn,isQuestion,prop,doneFn){
+      function submitComment(propId,text,clearFn,isQuestion,prop,doneFn,userOverride){
         if(!text.trim())return;
-        var user=userName;
-        if(!user||user.trim()===""){
-          var prompted=window.prompt("Please enter your name to add a comment:");
-          if(!prompted||!prompted.trim())return;
-          setUserName(prompted.trim());
-          user=prompted.trim();
-        }
+        var user=userOverride||userName||"Team";
         supabase.from("property_comments").insert({property_id:propId,user_name:user,action:"comment",comment:text.trim()}).select().single().then(function(r){
           if(r.data){
             setComments(function(prev){var n=Object.assign({},prev);n[propId]=(n[propId]||[]).concat(r.data);return n;});
@@ -1297,7 +1211,7 @@
           )
         ),
         view==="properties"&&h("div",{className:"cards-grid"},
-          filtered.map(function(prop){return h(PropertyCard,{key:prop.id,prop:prop,comments:comments[prop.id]||[],expanded:expanded===prop.id,lastVisit:lastVisit,onExpand:function(){setExpanded(expanded===prop.id?null:prop.id);},onFav:function(){toggleFav(prop);},onDiscard:function(){toggleDiscard(prop);},onSold:function(price){markAsSold(prop,price);},onComment:function(text,clear,isQ,p,done){submitComment(prop.id,text,clear,isQ,p,done);},onUpdate:function(updated,commentText,cmd){updateProperty(updated,commentText,cmd);},onDeleteComment:function(commentId){setComments(function(prev){var n=Object.assign({},prev);n[prop.id]=(n[prop.id]||[]).filter(function(x){return x.id!==commentId;});return n;});},setComments:setComments});}),
+          filtered.map(function(prop){return h(PropertyCard,{key:prop.id,prop:prop,comments:comments[prop.id]||[],expanded:expanded===prop.id,lastVisit:lastVisit,userName:userName,setUserName:setUserName,onExpand:function(){setExpanded(expanded===prop.id?null:prop.id);},onFav:function(){toggleFav(prop);},onDiscard:function(){toggleDiscard(prop);},onSold:function(price){markAsSold(prop,price);},onComment:function(text,clear,isQ,p,done,u){submitComment(prop.id,text,clear,isQ,p,done,u);},onUpdate:function(updated,commentText,cmd){updateProperty(updated,commentText,cmd);},onDeleteComment:function(commentId){setComments(function(prev){var n=Object.assign({},prev);n[prop.id]=(n[prop.id]||[]).filter(function(x){return x.id!==commentId;});return n;});},setComments:setComments});}),
           filtered.length===0&&h("div",{style:{gridColumn:"1/-1",textAlign:"center",padding:"80px 20px",color:"#ccc",fontFamily:"'IBM Plex Mono',monospace",fontSize:"0.85rem"}},"No properties match this filter")
         ),
         view==="pipeline"&&h(PipelineView,null),
