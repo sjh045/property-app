@@ -782,17 +782,16 @@
 
       function handleComment(){
         if(!note.trim())return;
-        var isQ=note.trim().endsWith("?");
-        var cmd=detectCommand(note);
-        if(cmd){
-          // Apply command silently
-          var updated=applyCommand(prop,cmd);
-          onUpdate(updated,note,cmd);
-          setNote("");
-          return;
+        // Post just saves the comment as-is — no command detection, no AI
+        // Use the Action button for smart processing
+        var user=userName;
+        if(!user||user.trim()===""){
+          var prompted=window.prompt("Please enter your name to add a comment:");
+          if(!prompted||!prompted.trim())return;
+          setUserName(prompted.trim());
+          user=prompted.trim();
         }
-        if(isQ)setAiLoading(true);
-        onComment(note,function(){setNote("");},isQ,prop,function(){setAiLoading(false);});
+        onComment(note,function(){setNote("");},false,prop,function(){});
       }
 
       function handleAction(){
@@ -831,14 +830,23 @@
         var fieldsCtx=
           "\nUpdatable fields and current values:\n"
           +"- est_market_rent (currently \u00a3"+(prop.est_market_rent||"unknown")+"/mo)\n"
-          +"- reno_total (currently \u00a3"+(prop.reno_total||"0")+")\n"
+          +"- reno_total / renovation cost (currently \u00a3"+(prop.reno_total||"0")+")\n"
           +"- price (currently \u00a3"+prop.price+")\n"
+          +"- est_refinance_value / post works value / refinance value (currently \u00a3"+(prop.est_refinance_value||"not set")+")\n"
+          +"- est_market_value_low (currently \u00a3"+(prop.est_market_value_low||"not set")+")\n"
+          +"- est_market_value_high (currently \u00a3"+(prop.est_market_value_high||"not set")+")\n"
           +"- priority (currently "+(prop.priority||"unknown")+") — must be HIGH, MEDIUM or LOW\n"
           +"- next_action (currently: "+(prop.next_action||"not set")+")\n"
           +"- strategy\n"
+          +"- development_potential\n"
           +"- issues_red_flags\n"
+          +"- listing_url (currently: "+(prop.listing_url||"not set")+")\n"
           +"- is_favourite (currently "+(prop.is_favourite?"yes":"no")+")\n"
-          +"- is_discarded (currently "+(prop.is_discarded?"yes":"no")+")\n";
+          +"- is_discarded (currently "+(prop.is_discarded?"yes":"no")+")\n"
+          +"\nIMPORTANT: When the user mentions post works value, refinance value, estimated value after works, "
+          +"or any synonym, map that to est_refinance_value. "
+          +"When they mention renovation cost, reno, works cost, map to reno_total. "
+          +"Always extract the numeric value from their message (strip \u00a3 signs and commas).\n";
         var systemPrompt=
           "You are an assistant managing a UK property investment deal flow app. "
           +"The user has typed an instruction about a specific property. "
@@ -864,7 +872,7 @@
           if(jsonMatch){
             try{
               var parsed=JSON.parse(jsonMatch[0]);
-              var allowed=["est_market_rent","reno_total","price","priority","next_action","strategy","issues_red_flags","is_favourite","is_discarded"];
+              var allowed=["est_market_rent","reno_total","price","priority","next_action","strategy","issues_red_flags","is_favourite","is_discarded","est_refinance_value","est_market_value_low","est_market_value_high","development_potential","listing_url","agent_name","agent_phone"];
               allowed.forEach(function(k){if(parsed[k]!==undefined)patch[k]=parsed[k];});
             }catch(e){}
           }
@@ -1099,15 +1107,13 @@
               );
             })
           ),
-          h("textarea",{value:note,onChange:function(e){setNote(e.target.value);},placeholder:"Comment, question (end with ?), or command e.g. 'reno cost is \u00a310k' or paste a listing url",style:{width:"100%",minHeight:48,border:"1px solid #ddd",borderRadius:8,padding:"8px 10px",fontSize:"0.75rem",color:"#1a1a2e",background:"#fff",marginBottom:8,resize:"vertical",fontFamily:"'Inter',sans-serif"}}),
+          h("textarea",{value:note,onChange:function(e){setNote(e.target.value);},placeholder:"Type a comment (Post) or give Claude an instruction e.g. 'update rent to \u00a31800', 'set post works value to \u00a3450k', 'what yield if price drops 10%?' (Action)",style:{width:"100%",minHeight:48,border:"1px solid #ddd",borderRadius:8,padding:"8px 10px",fontSize:"0.75rem",color:"#1a1a2e",background:"#fff",marginBottom:8,resize:"vertical",fontFamily:"'Inter',sans-serif"}}),
           h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}},
             h("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},buildLinks()),
             h("div",{style:{display:"flex",gap:6}},
-              detectCommand(note)
-                ?h("button",{className:"submit-btn",onClick:handleComment,disabled:aiLoading||(!note.trim())},
-                    "\u{1F527} Apply Update")
-                :h("button",{className:"submit-btn",onClick:handleComment,disabled:aiLoading||(!note.trim())},
-                    aiLoading?"Thinking...":"Post"),
+              h("button",{className:"submit-btn",onClick:handleComment,
+                disabled:aiLoading||(!note.trim())},
+                aiLoading?"Thinking...":"Post"),
               h("button",{onClick:handleAction,disabled:actionLoading||(!note.trim()),
                 style:{background:actionLoading?"#f9f9fb":"#4a0e22",color:actionLoading?"#aaa":"#fff",
                 border:"1px solid",borderColor:actionLoading?"#ddd":"#4a0e22",
