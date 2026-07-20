@@ -865,23 +865,28 @@
           body:JSON.stringify({prompt:systemPrompt+"\n\nUser instruction: "+actionText})
         }).then(function(r){return r.json();}).then(function(d){
           var reply=d.result||"Unable to process action.";
-          // Try to extract JSON update from the reply
-          var jsonMatch=reply.match(/\{[^}]+\}/);
-          var confirmation=reply.replace(/\{[^}]+\}/,"").trim();
+          // Extract JSON using a more robust approach — find outermost { }
           var patch={};
-          if(jsonMatch){
+          var firstBrace=reply.indexOf("{");
+          var lastBrace=reply.lastIndexOf("}");
+          if(firstBrace!==-1&&lastBrace>firstBrace){
             try{
-              var parsed=JSON.parse(jsonMatch[0]);
+              var jsonStr=reply.slice(firstBrace,lastBrace+1);
+              var parsed=JSON.parse(jsonStr);
               var allowed=["est_market_rent","reno_total","price","priority","next_action","strategy","issues_red_flags","is_favourite","is_discarded","est_refinance_value","est_market_value_low","est_market_value_high","development_potential","listing_url","agent_name","agent_phone"];
               allowed.forEach(function(k){if(parsed[k]!==undefined)patch[k]=parsed[k];});
             }catch(e){}
           }
+          // Confirmation text = everything after the JSON block (or full reply if no JSON)
+          var confirmation=firstBrace!==-1&&lastBrace>firstBrace
+            ?reply.slice(lastBrace+1).trim()||reply.slice(0,firstBrace).trim()||"Done."
+            :reply.trim();
           // Apply any field updates
           if(Object.keys(patch).length>0){
             patch.updated_at=new Date().toISOString();
             var enrichedPatch=enrich(Object.assign({},prop,patch));
-            supabase.from("properties").update(patch).eq("id",prop.id).then(function(r){
-              if(!r.error&&onUpdate)onUpdate(enrichedPatch,confirmation,{field:"action",value:confirmation,label:"action",isUrl:false});
+            supabase.from("properties").update(patch).eq("id",prop.id).then(function(ur){
+              if(!ur.error&&onUpdate)onUpdate(enrichedPatch,confirmation,{field:"action",value:confirmation,label:"action",isUrl:false});
             });
           }
           // Save Claude reply as ai_response comment
@@ -898,10 +903,11 @@
             }
             setActionLoading(false);
           });
-        }).catch(function(){
+        }).catch(function(err){
+          var errMsg="Unable to process action — try again.";
           supabase.from("property_comments").insert({
             property_id:prop.id,user_name:"Claude",action:"ai_response",
-            comment:"Unable to process action — try again."
+            comment:errMsg
           }).select().single().then(function(ar){
             if(ar.data)setComments&&setComments(function(prev){
               var n=Object.assign({},prev);n[prop.id]=(n[prop.id]||[]).concat(ar.data);return n;
