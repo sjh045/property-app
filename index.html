@@ -140,7 +140,7 @@
       var maxBidTrueGrossBase=maxBid?maxBid+sdlt(maxBid)+legal:null;
       var maxBidTotal=maxBid?maxBidTrueGrossBase+reno:null;
       var maxBidYield=(maxBid&&rent>0&&maxBidTrueGrossBase>0)?parseFloat((annual/maxBidTrueGrossBase*100).toFixed(2)):null;
-      var dq=(!p.address||p.address.length<5||p.address.indexOf("Unknown")!==-1||!price||!rent)?"incomplete":"complete";
+      var dq=(!p.address||p.address.length<8||p.address.indexOf("Unknown")!==-1||!price||!rent)?"incomplete":"complete";
       return Object.assign({},p,{sdlt:s,legal_fees:legal,gross_yield_pct:gy,total_acquisition_cost:total,true_gross_yield_pct:tg,true_net_yield_pct:tn,est_refinance_value:refVal,equity_created:valueCreated,value_created:valueCreated,capital_remaining:Math.round(total-mort),auction_guide_low:p.auction_guide_low||(guide?Math.round(price*1.15):null),auction_guide_high:p.auction_guide_high||(guide?Math.round(price*1.30):null),auction_max_bid:maxBid,auction_max_bid_yield:maxBidYield,auction_max_bid_total:maxBidTotal,data_quality:dq});
     }
 
@@ -578,7 +578,7 @@
             {label:"Last scan",value:lastRun?new Date(lastRun).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"Never",col:"#4a0e22"},
             {label:"Emails processed (24h)",value:totalEmails,col:"#1565c0"},
             {label:"Properties analysed (24h)",value:totalAnalysed,col:"#b45309"},
-            {label:"Properties added (24h)",value:totalAdded,col:"#2e7d32"},
+            {label:"Added via email (24h)",value:totalAdded,col:"#2e7d32"},
           ].map(function(s){
             return h("div",{key:s.label,className:"pipeline-card",style:{textAlign:"center"}},
               h("div",{style:{fontSize:"0.62rem",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:"#999",marginBottom:8}},s.label),
@@ -729,7 +729,7 @@
         });
       }
       var pc=PC(prop.priority),guide=isGuide(prop);var isNew=prop.created_at&&new Date(prop.created_at)>new Date(lastVisit);
-      var incomplete=prop.data_quality==="incomplete"||!prop.address||prop.address.length<5||!prop.price;
+      var incomplete=prop.data_quality==="incomplete"||!prop.address||prop.address.length<8||!prop.price;
       var cardClass="card"+(prop.is_favourite?" fav":"")+(prop.is_discarded?" disc":"")+(prop.is_sold?" sold":"")+(incomplete?" incomplete":"")+(isNew&&!prop.is_discarded&&!prop.is_sold?" new-prop":"");
 
       function handleSold(){var raw=window.prompt("Enter sale price (numbers only):"),digits="";if(raw!==null){for(var i=0;i<raw.length;i++){if(raw[i]>="0"&&raw[i]<="9")digits+=raw[i];}onSold(digits?Number(digits):null);}}
@@ -1166,7 +1166,7 @@
       var discs=properties.filter(function(p){return p.is_discarded;}).length;
       var sold=properties.filter(function(p){return p.is_sold;}).length;
       var actv=properties.filter(function(p){return !p.is_discarded&&!p.is_sold;}).length;
-      var incomplete=properties.filter(function(p){return !p.is_discarded&&!p.is_sold&&(p.data_quality==="incomplete"||!p.address||p.address.length<5);}).length;
+      var incomplete=properties.filter(function(p){return !p.is_discarded&&!p.is_sold&&(p.data_quality==="incomplete"||!p.address||p.address.length<8);}).length;
       var highCount=properties.filter(function(p){return p.priority==="HIGH"&&!p.is_discarded&&!p.is_sold;}).length;
       var midCount=properties.filter(function(p){return p.priority==="MEDIUM"&&!p.is_discarded&&!p.is_sold;}).length;
       var lowCount=properties.filter(function(p){return p.priority==="LOW"&&!p.is_discarded&&!p.is_sold;}).length;
